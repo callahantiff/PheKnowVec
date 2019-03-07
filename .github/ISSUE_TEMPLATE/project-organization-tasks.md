@@ -1,5 +1,5 @@
 ---
-name: Project Organization tasks
+name: Project Organization Tasks
 about: Help organize project organization tasks
 title: 'TODO - Project Organization: short description of needed task'
 labels: 'TODO: Project Organization'
