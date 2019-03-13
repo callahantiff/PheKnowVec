@@ -1,7 +1,7 @@
 ---
 name: Coding Tasks
 about: Make requests to edit existing code or create new code
-title: 'TODO - Coding: short description of needed code'
+title: 'Coding: short description of needed code'
 labels: TODO:Coding
 assignees: ''
 
