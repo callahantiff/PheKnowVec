@@ -1,6 +1,6 @@
 ---
 name: Manuscript Tasks
-about: Help organize requests for manuscript-related tasks
+about: Add a manuscript-related task
 title: 'TODO - Manuscript Task: Short description of task'
 labels: 'TODO: Manuscript Tasks'
 assignees: ''

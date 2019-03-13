@@ -1,6 +1,6 @@
 ---
 name: Meetings
-about: Follow-up on meeting topics and/or suggest or create new meeting topics
+about: Follow-up on a meeting topic and/or suggest/create new meeting topics
 title: ''
 labels: Meetings
 assignees: ''
