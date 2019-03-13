@@ -5,8 +5,8 @@ Please see the [Project Wiki](https://github.com/callahantiff/PheKnowVec/wiki) f
 
 <br>
 
-#### This is a Reproducbile Research Repository
-This repository contains more than just code, it provides a detailed and transparent narrative of our research process. For detailed information on how we use GitHub as a reproducible reserach platform, click [here](https://github.com/callahantiff/PheKnowVec/wiki/Reproducible-Research-Repository).
+#### This is a Reproducible Research Repository
+This repository contains more than just code, it provides a detailed and transparent narrative of our research process. For detailed information on how we use GitHub as a reproducible research platform, click [here](https://github.com/callahantiff/PheKnowVec/wiki/Reproducible-Research-Repository).
 
 ______
 ### Getting Started
