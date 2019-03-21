@@ -1,0 +1,5 @@
+gspread==3.1.0
+google-cloud==0.34.0
+google-api-core==1.8.1
+pandas==0.24.2
+oauth2client==4.1.3
