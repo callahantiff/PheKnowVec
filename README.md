@@ -10,3 +10,12 @@ This repository contains more than just code, it provides a detailed and transpa
 
 ______
 ### Getting Started
+
+**Dependencies**
+This repository is built using Python 2.7.13. To install the libraries used in this repository, run the line of code shown below from the within the project directory.
+```
+pip install -r requirements.txt
+```
+
+**Data**
+It's important to note that this repository makes heavy use of [PheKB](https://phekb.org). All of the phenotypes utilized in this project were initially developed in a GoogleSheet, thus this repository contains code which uses Google's [DriveAPI](https://developers.google.com/drive/) and[SheetsAPI](https://developers.google.com/sheets/api/).
