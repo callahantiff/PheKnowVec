@@ -1,9 +1,9 @@
-# Byte-compiled / optimized / DLL files
+# Byte-compiled/optimized/DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 
-# Distribution / packaging
+# Distribution/packaging
 .Python
 build/
 develop-eggs/
@@ -30,9 +30,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+.idea/*
 
 # Documentation drafts
 resources/documentation/images/PheKnowVec - Experiments.pdf
 resources/documentation/images/wiki/ReproducibleRepository.pptx
-resources/documentation/images/wiki/~$ReproducibleRepository.pptx
+
+# Programming resources
+resources/programming/Google_API/*
