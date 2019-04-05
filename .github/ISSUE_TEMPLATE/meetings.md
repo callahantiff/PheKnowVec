@@ -3,7 +3,7 @@ name: Meetings
 about: Set a meeting agenda, request a meeting or a topic be discussed at an upcoming
   meeting
 title: Project Meeting -- MM/DD/YYYY @ HH:MM
-labels: ''
+labels: meeting minutes
 assignees: callahantiff
 
 ---
