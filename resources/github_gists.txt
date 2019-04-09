@@ -1,0 +1,4 @@
+source_string_syn;https://gist.github.com/callahantiff/63eb95d2fbc0af33335586925ec719d6/raw
+source_string;https://gist.github.com/callahantiff/2e9558064f62c29cbad5a75b684ae175/raw
+source_code;https://gist.github.com/callahantiff/1c2a36c2b62c4a38bc0be762413a0417/raw
+source_code_desc;https://gist.github.com/callahantiff/f6fc3a798ac102893d40e2313dc9226f/raw
