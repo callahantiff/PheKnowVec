@@ -1,7 +1,10 @@
 gspread>=3.0.0
 gspread-dataframe>=3.0.2
+matplotlib==3.0.3
+numpy==1.16.2
 oauth2client>=4.0.0
 pandas==0.24.2
 ProgressBar==2.5
 pygsheets==2.0.0
 requests==2.21.0
+seaborn==0.8.1

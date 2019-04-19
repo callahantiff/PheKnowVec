@@ -174,7 +174,10 @@ class GSProcessor(object):
 
             for row, val in pbar(string_data.iterrows()):
                 source_domain.add(val['source_domain'])
-                source_string.append("WHEN lower(concept_name) LIKE {0} THEN '{0}'".format(val['source_code'].lower()))
+                # med = val['source_code'].strip('"').lower()
+                # source_string.append("WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(med))
+                med = val['source_code'].lower()
+                source_string.append("WHEN lower(c.concept_name) LIKE {0} THEN '{0}'".format(med))
 
             pbar.finish()
             finish = datetime.now()

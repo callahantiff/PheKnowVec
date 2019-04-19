@@ -10,6 +10,7 @@ import datetime
 import oauth2client.service_account
 import pandas_gbq
 import requests
+import pandas as pd
 
 from datetime import datetime
 from google.oauth2 import service_account
@@ -79,9 +80,6 @@ class GBQ(object):
 
         Returns:
             A pandas data frame.
-
-        Raises:
-            An value error occurs when the query returns no results.
         """
 
         start = datetime.now()
@@ -94,11 +92,8 @@ class GBQ(object):
         finish = datetime.now()
         print("Finished processing query: {}".format(finish))
 
-        if len(results) == 0:
-            raise ValueError('Error - Query did not return any data')
-        else:
-            duration = finish-start
-            time_diff = round(duration.total_seconds(), 2)
-            print('Query returned: {0} results in {1} seconds \n'.format(len(results), time_diff))
+        duration = finish-start
+        time_diff = round(duration.total_seconds(), 2)
+        print('Query returned: {0} results in {1} seconds \n'.format(len(results), time_diff))
 
-            return results
+        return results
