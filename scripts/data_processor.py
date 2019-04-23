@@ -9,9 +9,7 @@ import gspread
 import gspread_dataframe as gd
 import pandas as pd
 
-from datetime import datetime
 from oauth2client.service_account import ServiceAccountCredentials
-from progressbar import ProgressBar, FormatLabel, Percentage, Bar
 
 
 class GSProcessor(object):
@@ -80,118 +78,118 @@ class GSProcessor(object):
         self.worksheet = self.sheet.worksheet(sheet_name)
         print('Updated, switched to Google Sheet: {0}, Tab: {1}\n'.format(self.sheet_info[0], sheet_name))
 
-    @staticmethod
-    def code_format(codes):
-        """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
-        list of sets. This function assumes that the input data contains specific columns: 'Input_Type',
-        'Source_Code', 'Source_Vocabulary', and 'Standard_Vocabulary'.
-
-        Args:
-             codes: A pandas data frame.
-
-        Returns:
-            A tuple of joined sets, where each set contains an SQL parameter. For example:
-
-            ('"348.1", "348.2", "348.3"', '"ICD9CM"', '"SNOMED"')
-
-        Raises:
-            An error occurs if the data frame does not contain the mandatory columns.
-            An error occurs when the input data frame does not contain required data (i.e. source codes,
-            source vocab, and standard vocabulary information.
-        """
-
-        if 'input_type' and 'source_code' and 'source_vocabulary' and 'standard_vocabulary' not in list(codes):
-            raise ValueError('Error - data does not contain the mandatory columns. Please make sure your data frame '
-                             'includes the following columns: input_type, source_code, source_vocabulary, and '
-                             'standard_vocabulary')
-        else:
-
-            source_code = set()
-            source_vocab = set()
-            standard_vocab = set()
-
-            code_data = codes.groupby('input_type').get_group('Code')
-
-            start = datetime.now()
-            print('\n Started processing source codes: {}'.format(start))
-            widgets = [Percentage(), Bar(), FormatLabel('(elapsed: %(elapsed)s)')]
-            pbar = ProgressBar(widgets=widgets, maxval=len(code_data))
-
-            for row, val in pbar(code_data.iterrows()):
-                source_code.add(val['source_code'])
-                source_vocab.add(val['source_vocabulary'])
-                standard_vocab.add(val['standard_vocabulary'])
-
-            pbar.finish()
-            finish = datetime.now()
-            print("Finished processing source codes: {}".format(finish))
-
-            # verify we have results
-            if not len(source_code) and len(source_vocab) and len(standard_vocab) >= 1:
-                raise ValueError('Error - check your data file, important variables may be missing')
-            else:
-                duration = finish - start
-                time_diff = round(duration.total_seconds(), 2)
-                print('Processed {0} codes in {1} seconds \n'.format(len(source_code), time_diff))
-
-                return (','.join(map(str, source_code)),
-                        '"' + '","'.join(map(str, source_vocab)) + '"',
-                        '"' + '","'.join(map(str, standard_vocab)) + '"')
-
-    @staticmethod
-    def string_format(strings):
-        """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
-        list of sets. This function assumes that the input data contains specific columns: 'Input_Type',
-        'Source_Code', 'Source_Vocabulary', and 'Standard_Vocabulary'.
-
-        Args:
-             strings: A pandas data frame.
-
-        Returns:
-            A tuple of joined sets, where each set contains an SQL parameter. For example:
-
-            ('"WHEN lower(concept_name) LIKE '%clonazepam%' THEN '%clonazepam%'', '"Drug"')
-
-        Raises:
-            An error occurs if the data frame does not contain the mandatory columns.
-            An error occurs when the input data frame does not contain required data (i.e. source strings and source
-            domain information.
-        """
-        source_string = []
-        source_domain = set()
-
-        if 'input_type' and 'source_domain' and 'source_code' not in list(strings):
-            raise ValueError('Error - data does not contain the mandatory columns. Please make sure your data frame '
-                             'includes the following columns: input_type, source_domain, and source_code')
-        else:
-
-            string_data = strings.groupby('input_type').get_group('String')
-
-            start = datetime.now()
-            print('\n Started processing source strings: {}'.format(start))
-            widgets = [Percentage(), Bar(), FormatLabel('(elapsed: %(elapsed)s)')]
-            pbar = ProgressBar(widgets=widgets, maxval=len(string_data))
-
-            for row, val in pbar(string_data.iterrows()):
-                source_domain.add(val['source_domain'])
-                # med = val['source_code'].strip('"').lower()
-                # source_string.append("WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(med))
-                med = val['source_code'].lower()
-                source_string.append("WHEN lower(c.concept_name) LIKE {0} THEN '{0}'".format(med))
-
-            pbar.finish()
-            finish = datetime.now()
-            print("Finished processing source strings: {}".format(finish))
-
-            # verify we have results
-            if not len(source_string) and len(source_domain) >= 1:
-                raise ValueError('Error - check your data file, important variables may be missing')
-            else:
-                duration = finish - start
-                time_diff = round(duration.total_seconds(), 2)
-                print('Processed {0} strings in {1} seconds \n'.format(len(source_string), time_diff))
-
-                return '\n '.join(map(str, set(source_string))), '"' + '","'.join(map(str, source_domain)) + '"'
+    # @staticmethod
+    # def code_format(codes):
+    #     """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
+    #     list of sets. This function assumes that the input data contains specific columns: 'Input_Type',
+    #     'Source_Code', 'Source_Vocabulary', and 'Standard_Vocabulary'.
+    #
+    #     Args:
+    #          codes: A pandas data frame.
+    #
+    #     Returns:
+    #         A tuple of joined sets, where each set contains an SQL parameter. For example:
+    #
+    #         ('"348.1", "348.2", "348.3"', '"ICD9CM"', '"SNOMED"')
+    #
+    #     Raises:
+    #         An error occurs if the data frame does not contain the mandatory columns.
+    #         An error occurs when the input data frame does not contain required data (i.e. source codes,
+    #         source vocab, and standard vocabulary information.
+    #     """
+    #
+    #     if 'input_type' and 'source_code' and 'source_vocabulary' and 'standard_vocabulary' not in list(codes):
+    #         raise ValueError('Error - data does not contain the mandatory columns. Please make sure your data frame '
+    #                          'includes the following columns: input_type, source_code, source_vocabulary, and '
+    #                          'standard_vocabulary')
+    #     else:
+    #
+    #         source_code = set()
+    #         source_vocab = set()
+    #         standard_vocab = set()
+    #
+    #         code_data = codes.groupby('input_type').get_group('Code')
+    #
+    #         start = datetime.now()
+    #         print('\n Started processing source codes: {}'.format(start))
+    #         widgets = [Percentage(), Bar(), FormatLabel('(elapsed: %(elapsed)s)')]
+    #         pbar = ProgressBar(widgets=widgets, maxval=len(code_data))
+    #
+    #         for row, val in pbar(code_data.iterrows()):
+    #             source_code.add(val['source_code'])
+    #             source_vocab.add(val['source_vocabulary'])
+    #             standard_vocab.add(val['standard_vocabulary'])
+    #
+    #         pbar.finish()
+    #         finish = datetime.now()
+    #         print("Finished processing source codes: {}".format(finish))
+    #
+    #         # verify we have results
+    #         if not len(source_code) and len(source_vocab) and len(standard_vocab) >= 1:
+    #             raise ValueError('Error - check your data file, important variables may be missing')
+    #         else:
+    #             duration = finish - start
+    #             time_diff = round(duration.total_seconds(), 2)
+    #             print('Processed {0} codes in {1} seconds \n'.format(len(source_code), time_diff))
+    #
+    #             return (','.join(map(str, source_code)),
+    #                     '"' + '","'.join(map(str, source_vocab)) + '"',
+    #                     '"' + '","'.join(map(str, standard_vocab)) + '"')
+    #
+    # @staticmethod
+    # def string_format(strings):
+    #     """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
+    #     list of sets. This function assumes that the input data contains specific columns: 'Input_Type',
+    #     'Source_Code', 'Source_Vocabulary', and 'Standard_Vocabulary'.
+    #
+    #     Args:
+    #          strings: A pandas data frame.
+    #
+    #     Returns:
+    #         A tuple of joined sets, where each set contains an SQL parameter. For example:
+    #
+    #         ('"WHEN lower(concept_name) LIKE '%clonazepam%' THEN '%clonazepam%'', '"Drug"')
+    #
+    #     Raises:
+    #         An error occurs if the data frame does not contain the mandatory columns.
+    #         An error occurs when the input data frame does not contain required data (i.e. source strings and source
+    #         domain information.
+    #     """
+    #     source_string = []
+    #     source_domain = set()
+    #
+    #     if 'input_type' and 'source_domain' and 'source_code' not in list(strings):
+    #         raise ValueError('Error - data does not contain the mandatory columns. Please make sure your data frame '
+    #                          'includes the following columns: input_type, source_domain, and source_code')
+    #     else:
+    #
+    #         string_data = strings.groupby('input_type').get_group('String')
+    #
+    #         start = datetime.now()
+    #         print('\n Started processing source strings: {}'.format(start))
+    #         widgets = [Percentage(), Bar(), FormatLabel('(elapsed: %(elapsed)s)')]
+    #         pbar = ProgressBar(widgets=widgets, maxval=len(string_data))
+    #
+    #         for row, val in pbar(string_data.iterrows()):
+    #             source_domain.add(val['source_domain'])
+    #             # med = val['source_code'].strip('"').lower()
+    #             # source_string.append("WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(med))
+    #             med = val['source_code'].lower()
+    #             source_string.append("WHEN lower(c.concept_name) LIKE {0} THEN '{0}'".format(med))
+    #
+    #         pbar.finish()
+    #         finish = datetime.now()
+    #         print("Finished processing source strings: {}".format(finish))
+    #
+    #         # verify we have results
+    #         if not len(source_string) and len(source_domain) >= 1:
+    #             raise ValueError('Error - check your data file, important variables may be missing')
+    #         else:
+    #             duration = finish - start
+    #             time_diff = round(duration.total_seconds(), 2)
+    #             print('Processed {0} strings in {1} seconds \n'.format(len(source_string), time_diff))
+    #
+    #             return '\n '.join(map(str, set(source_string))), '"' + '","'.join(map(str, source_domain)) + '"'
 
     @staticmethod
     def result_merger(data, results, merge_cols, keep_cols):
@@ -227,3 +225,57 @@ class GSProcessor(object):
         merged_data = merged_data.drop([x for x in list(merged_data) if '_y' in x], axis=1)
 
         return merged_data
+
+    @staticmethod
+    def code_format(data, input_source, mod=''):
+        """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
+        list
+        of sets.
+
+        Args:
+            data: A pandas dataframe.
+            input_source: A list of strings that represent columns in a pandas dataframe. The function assumes that
+                the list contains the following:
+                    (1) a string that indicates if the query uses input strings or codes
+                    (2) a string that indicates the name of the column that holds the source codes or strings
+                    (3) a string that indicates the name of the column that holds the source domain or source vocabulary
+                    (4) 'None' or a list of strings that are database names
+            mod: A string that indicates whether or not a modifier should be used.
+
+        Returns:
+             When input_source includes 'string', then list of joined sets is returned, where each set contains an SQL
+             parameter. For example:
+
+            ('"WHEN lower(concept_name) LIKE '%clonazepam%' THEN '%clonazepam%'', '"Drug"')
+
+            When input_source includes 'code', then list of joined sets is returned, where each set contains an SQL
+             parameter. For example:
+
+            ('"348.1", "348.2", "348.3"', '"ICD9CM"', '"SNOMED"')
+
+        Raises:
+            An error occurs when the input data frame does not contain required data (i.e. source codes, source vocab,
+            and standard vocabulary information.
+        """
+
+        if 'code' not in input_source[0] and mod == '':
+            format_nomod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
+            source1 = set(list(data[str(input_source[1])].apply(format_nomod)))
+            source2 = set(list(data[str(input_source[2])]))
+            res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+        elif 'code' not in input_source[0] and mod != '':
+            format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(x.strip('"').lower())
+            source1 = set(list(data[str(input_source[1])].apply(format_mod)))
+            source2 = set(list(data[str(input_source[2])]))
+            res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+        else:
+            source1 = set(list(data[str(input_source[1])]))
+            source2 = set(list(data[str(input_source[2])]))
+            res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+        if not len(source1) >= 1:
+            raise ValueError('Error - check your data file, important variables may be missing')
+        else:
+            return res
