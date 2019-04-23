@@ -7,7 +7,6 @@ exact_match;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9
 CSEM_OMOP_KE;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/75e408ba5cae81f95f4b4257e550cb52afbf7817/CSEM_OMOP_KE.sql
 CSEM_OMOP_KE_Children;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/75e408ba5cae81f95f4b4257e550cb52afbf7817/CSEM_OMOP_KE_Children.sql
 CSEM_OMOP_KE_Desc;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/75e408ba5cae81f95f4b4257e550cb52afbf7817/CSEM_OMOP_KE_Desc.sql
-SRC_DRG_COUNT;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/75e408ba5cae81f95f4b4257e550cb52afbf7817/SRC_DRG_COUNT.sql
 stand_terms;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/2ef09fb63fbc018fb6311891eebaee648d327021/stand_terms.sql
 stand_terms_children;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/2ef09fb63fbc018fb6311891eebaee648d327021/stand_terms_children.sql
 stand_terms_desc;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/2ef09fb63fbc018fb6311891eebaee648d327021/stand_terms_desc.sql
