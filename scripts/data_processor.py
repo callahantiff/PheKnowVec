@@ -78,12 +78,25 @@ class GSProcessor(object):
         self.worksheet = self.sheet.worksheet(sheet_name)
         print('Updated, switched to Google Sheet: {0}, Tab: {1}\n'.format(self.sheet_info[0], sheet_name))
 
-    def code_format(self, input_source, mod=''):
-        """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
-        list
-        of sets.
+    def set_data(self, new_data):
+        """Takes a pandas data frame as an argument and uses it to update the instance's data.
 
         Args:
+            new_data: A string containing the name of a tab in the current Google Sheet.
+
+        Return:
+             None.
+        """
+        self.data = new_data
+        print('Updated Instance -- Set New Pandas Dataframe')
+
+    @staticmethod
+    def code_format(temp_data, input_source, mod=''):
+        """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
+        list of sets.
+
+        Args:
+            temp_data: A pandas data frame.
             input_source: A list of strings that represent columns in a pandas dataframe. The function assumes that
                 the list contains the following:
                     (1) a string that indicates if the query uses input strings or codes
@@ -107,7 +120,8 @@ class GSProcessor(object):
             An error occurs when the input data frame does not contain required data (i.e. source codes, source vocab,
             and standard vocabulary information.
         """
-        temp_data = self.get_data().copy()
+
+        # get data
 
         if 'code' not in input_source[0] and mod == '':
             format_nomod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())

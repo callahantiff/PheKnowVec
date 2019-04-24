@@ -28,7 +28,7 @@ def domain_occurrence(data, url, databases):
         A pandas data frame.
     """
 
-    merged_results = []
+    merged_res = []
 
     for db_ in databases:
         print('\n' + '#' * 50 + '\n' + 'Running query against {0}'.format(db_))
@@ -48,20 +48,19 @@ def domain_occurrence(data, url, databases):
         merged = pd.concat(query_results).drop_duplicates()
 
         # rename column
-        merged.rename(columns={'_count': str(db_.split('_')[0]) + '_count'}, inplace=True)
-        merged_results.append(merged)
+        merged.rename(columns={'drg_count': str(db_.split('_')[0]) + '_count'}, inplace=True)
+        merged_res.append(merged)
 
     # merge results from the input databases together
-    col_set1 = set(list(merged_results[0])).intersection(set(list(merged_results[1])))
-    merged_comb = pd.merge(left=merged_results[0], right=merged_results[1], how='outer',
+    col_set1 = set(list(merged_res[0])).intersection(set(list(merged_res[1])))
+    merged_comb = pd.merge(left=merged_res[0], right=merged_res[1], how='outer',
                            left_on=list(col_set1), right_on=list(col_set1))
 
     # aggregate merged count results by standard_code
     db1_name = str(databases[0].split('_')[0]) + '_count'
     db2_name = str(databases[1].split('_')[0]) + '_count'
     merged_agg = merged_comb.fillna(0).groupby('standard_code', as_index=False).agg(
-            {str(db1_name): lambda x: sum(set(x)),
-             str(db2_name): lambda x: sum(set(x))})
+        {db1_name: lambda x: sum(set(x)), db2_name: lambda x: sum(set(x))})
 
     # combine results with full dataset
     col_set2 = set(list(data)).intersection(set(list(merged_agg)))
@@ -106,13 +105,21 @@ def regular_query(data, input_source, mod, gbq_db, url, query, gbq_database):
 
     # get occurrence counts
     cont_results = pd.concat(query_results).drop_duplicates()
-    print('There are {0} unique rows in the results data frame'.format(len(cont_results)))
+
+    # add back source_string (only for standard queries)
+    if 'source_string' in cont_results:
+        merged_results = cont_results.copy()
+    else:
+        merged_results = pd.merge(left=data[['source_code', 'source_string']].drop_duplicates(),
+                                  right=cont_results, how='right', on='source_code').drop_duplicates()
+
+    print('There are {0} unique rows in the results data frame'.format(len(merged_results)))
 
     if input_source[4] is not None:
-        results = domain_occurrence(cont_results, url[input_source[3]], input_source[4])
+        results = domain_occurrence(merged_results, url[input_source[3]], input_source[4])
         return results
     else:
-        return cont_results
+        return merged_results
 
 
 def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
@@ -137,17 +144,17 @@ def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
     # get counts of drug occurrences by standard codes
     # CHCO
     print(plt_dat_chco[['standard_code']].describe())
-    num_c = plt_dat_chco.loc[plt_dat_chco['CHCO_drg_count'] > 0.0]['CHCO_drg_count'].sum()
-    denom_c = len(set(list(plt_dat_chco.loc[plt_dat_chco['CHCO_drg_count'] > 0.0]['standard_code'])))
-    print('CHCO: There are {0} Unique Standard Codes with Drug Occurrence > 0'.format(denom_c))
-    print('CHCO: The Average Drug Occurrences per Standard Code is : {0} \n'.format(num_c / denom_c))
+    num_c = plt_dat_chco.loc[plt_dat_chco['CHCO_count'] > 0.0]['CHCO_count'].sum()
+    denom_c = len(set(list(plt_dat_chco.loc[plt_dat_chco['CHCO_count'] > 0.0]['standard_code'])))
+    print('CHCO: There are {0} Unique Standard Codes with Occurrence > 0'.format(denom_c))
+    print('CHCO: The Average Occurrences per Standard Code is : {0} \n'.format(num_c / denom_c))
 
     # MIMIC
     print(plt_dat_mimic[['standard_code']].describe())
     num_m = plt_dat_mimic.loc[plt_dat_mimic['MIMICIII_count'] > 0.0]['MIMICIII_count'].sum()
     denom_m = len(set(list(plt_dat_mimic.loc[plt_dat_mimic['MIMICIII_count'] > 0.0]['standard_code'])))
-    print('MIMICIII: There are {0} Unique Standard Codes with Drug Occurrence > 0'.format(denom_m))
-    print('MIMICIII: The Average Drug Occurrences per Standard Code is : {0} \n'.format(num_m / denom_m))
+    print('MIMICIII: There are {0} Unique Standard Codes with Occurrence > 0'.format(denom_m))
+    print('MIMICIII: The Average Occurrences per Standard Code is : {0} \n'.format(num_m / denom_m))
 
     # generate plots
     f = plt.figure()
@@ -159,8 +166,7 @@ def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
         f.add_subplot(1, 2, 2)
         sns.distplot(list(plt_dat_chco['CHCO_count']), color="red", label="CHCO Count")
         plt.legend()
-    f.text(0.5, 0.98, plot_title, ha='center',
-           va='center')
+    f.text(0.5, 0.98, plot_title, ha='center', va='center')
     f.text(0.5, 0.01, plot_x_axis, ha='center', va='center')
     plt.show()
 
@@ -168,7 +174,6 @@ def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
 
 
 def main():
-
     ########################
     # GBQ: query an existing table
     databases = ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']
@@ -177,53 +182,59 @@ def main():
     # load queries
     url = {x.split(';')[0]: x.split(';')[1] for x in open('resources/github_gists.txt', 'r').read().split('\n')}
 
-    # load data
+    # load data from GoogleSheet
     sht = 'ADHD_test'
     all_data = GSProcessor(['Phenotype Definitions', sht])
     all_data.data_download()
     data = all_data.get_data().dropna(how='all', axis=1).dropna()
     data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
 
-    for dat in [['automated', '%', ['str', 'source_id', 'source_domain', 'SRC_DRG_COUNT', None]],
-                ['exact_match', '', ['str', 'source_id', 'source_domain', 'SRC_DRG_COUNT', None]],
-                ['CSEM_OMOP_KE', '', ['str', 'source_id', 'source_domain', 'SRC_DRG_COUNT', None]],
-                ['CSEM_OMOP_KE_Children', '', ['str', 'source_id', 'source_domain', 'SRC_DRG_COUNT', None]],
-                ['CSEM_OMOP_KE_Desc', '', ['str', 'source_id', 'source_domain', 'SRC_DRG_COUNT', None]]]:
+    # create list to store information on source queries
+    source_queries = [['wildcard_match', '%', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSWM', '%', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSWM_Child', '%', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSWM_Desc', '%', ['str', 'source_id', 'source_domain', None, None]],
+                      ['exact_match', '', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSEM', '', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSEM_Child', '', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSEM_Desc', '', ['str', 'source_id', 'source_domain', None, None]]]
 
-        source_results = regular_query(data, dat[2], dat[1], gbq_db, url, dat[0], databases[0])
+    # create list to store information on standard queries
+    standard_queries = [['stand_terms', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
+                                             ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]],
+                        ['stand_terms_children', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
+                                                      ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]],
+                        ['stand_terms_desc', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
+                                                  ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]]]
+
+    for src_query in source_queries[0]:
+        source_results = regular_query(data, src_query[2], src_query[1], gbq_db, url, src_query[0], databases[0])
         print(source_results[['source_string', 'source_code', 'source_vocabulary']].describe())
 
         # write out source data to Google sheet
-        sht_new = '{0}_{1}'.format(sht, dat[0])
+        sht_new = '{0}_{1}'.format(sht, src_query[0])
         all_data.create_worksheet(sht_new)
         all_data.set_worksheet(sht_new)
         gd.set_with_dataframe(all_data.get_worksheet(), source_results)
 
         # process second half of queries -- getting standard codes
-        for dat2 in [['stand_terms', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
-                                          ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]],
-                     ['stand_terms_children', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
-                                                   ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]],
-                     ['stand_terms_desc', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
-                                               ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]]]:
+        for std_query in standard_queries:
             data2 = source_results.copy()
-            data2 = data2.drop(['source_string', 'source_domain', 'source_name', 'input_type'],
-                               axis=1).drop_duplicates()
-
-            stand_results = regular_query(data2, dat2[2], dat2[1], gbq_db, url, dat2[0], databases[0])
+            data2 = data2.drop(['source_domain', 'source_name', 'input_type'], axis=1).drop_duplicates()
+            stand_results = regular_query(data2, std_query[2], std_query[1], gbq_db, url, std_query[0], databases[0])
 
             # print descriptive stats
-            print(data[['source_code', 'source_vocabulary']].describe())
-            print(data[['standard_code', 'standard_vocabulary']].describe())
+            print(stand_results[['source_string', 'source_code', 'source_vocabulary']].describe())
+            print(stand_results[['standard_code', 'standard_vocabulary']].describe())
 
             # generate histograms and output for occurrence counts
             descriptive(stand_results,
-                        '{0}_{1}_{2}: Occurrence Counts'.format(sht, dat[0], dat2[0]),
+                        '{0}_{1}_{2}: Occurrence Counts'.format(sht, src_query[0], std_query[0]),
                         'Drug Exposure Occurrence (Count)',
                         'Density')
 
             # write out standard data to Google sheet
-            sht_new = '{0}_{1}_{2}'.format(sht, dat[0], dat2[0])
+            sht_new = '{0}_{1}_{2}'.format(sht, src_query[0], std_query[0])
             all_data.create_worksheet(sht_new)
             all_data.set_worksheet(sht_new)
             gd.set_with_dataframe(all_data.get_worksheet(), stand_results)
