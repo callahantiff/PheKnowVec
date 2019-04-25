@@ -66,6 +66,20 @@ class GSProcessor(object):
 
         self.get_sheet().add_worksheet(title=sheet_name, rows=1, cols=1)
 
+    def create_spreadsheet(self, spreadsheet_name, email_address):
+        """Takes a string that contains a spreadsheet name and a string that contains the email address of who the
+        spreadsheet should be shared with.
+
+        Args:
+            spreadsheet_name: A string that contains a spreadsheet name.
+            email_address: A a string that contains an email address.
+
+        Return:
+            None.
+        """
+        sh = gspread.authorize(self.cred).create(spreadsheet_name)
+        sh.share(email_address, perm_type='user', role='writer')
+
     def set_worksheet(self, sheet_name):
         """Takes a string as an argument and changes active tab in google sheets.
 
@@ -77,6 +91,21 @@ class GSProcessor(object):
         """
         self.worksheet = self.sheet.worksheet(sheet_name)
         print('Updated, switched to Google Sheet: {0}, Tab: {1}\n'.format(self.sheet_info[0], sheet_name))
+
+    @staticmethod
+    def sheet_writer(spreadsheet, results):
+        """Takes an instantiated class and a pandas dataframe and writes the data to the location specified by the
+        class.
+
+        Args:
+            spreadsheet: A string that contains an instance of the class.
+            results: A pandas dataframe.
+
+        Return:
+             None
+        """
+
+        gd.set_with_dataframe(spreadsheet.get_worksheet(), results)
 
     def set_data(self, new_data):
         """Takes a pandas data frame as an argument and uses it to update the instance's data.
@@ -91,7 +120,7 @@ class GSProcessor(object):
         print('Updated Instance -- Set New Pandas Dataframe')
 
     @staticmethod
-    def code_format(temp_data, input_source, mod=''):
+    def code_format(temp_data, input_source, mod='', data_type=None):
         """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
         list of sets.
 
@@ -103,6 +132,7 @@ class GSProcessor(object):
                     (2) a string that indicates the name of the column that holds the source codes or strings
                     (3) a string that indicates the name of the column that holds the source domain or source vocabulary
                     (4) 'None' or a list of strings that are database names
+            data_type: A string containing the name of a query.
             mod: A string that indicates whether or not a modifier should be used.
 
         Returns:
@@ -122,6 +152,7 @@ class GSProcessor(object):
         """
 
         # get data
+        tables = ['drug_exposure', 'condition_occurrence', 'procedure_occurrence', 'observation', 'measurement']
 
         if 'code' not in input_source[0] and mod == '':
             format_nomod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
@@ -136,11 +167,18 @@ class GSProcessor(object):
             res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
 
         else:
-            source1 = set(list(temp_data[input_source[1]]))
-            source2 = set(list(temp_data[input_source[2]]))
-            res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+            if data_type is not None:
+                table_name = tables[[i for i, s in enumerate(tables) if set(temp_data['source_domain']).pop() in s][0]]
+                source1 = set(list(temp_data[input_source[1]]))
+                source2 = set(list(temp_data[input_source[2]]))
+                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"' + table_name + table_name
 
-        if not len(source1) >= 1:
-            raise ValueError('Error - check your data file, important variables may be missing')
+            else:
+                source1 = set(list(temp_data[input_source[1]]))
+                source2 = set(list(temp_data[input_source[2]]))
+                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+        if not len(source1) and len(source2) >= 1:
+            raise ValueError('Error - check your input data, important variables may be missing')
         else:
             return res

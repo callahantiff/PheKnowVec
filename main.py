@@ -5,7 +5,7 @@
 ####################
 
 # import auger
-import gspread_dataframe as gd
+# import gspread_dataframe as gd
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
@@ -41,7 +41,8 @@ def domain_occurrence(data, url, databases):
         for name, group in batch:
             print('\n Processing chunk {0} of {1}'.format(name + 1, batch.ngroups))
 
-            sql_args = GSProcessor.code_format(group, ['code', 'standard_code', 'standard_vocabulary'], '')
+            sql_args = GSProcessor.code_format(group,
+                                               ['code', 'standard_code', 'standard_vocabulary'], '', url.split('/')[-1])
             res = db.gbq_query(url, (db_, *sql_args))
             query_results.append(res.drop_duplicates())
 
@@ -73,7 +74,7 @@ def domain_occurrence(data, url, databases):
 
 
 def regular_query(data, input_source, mod, gbq_db, url, query, gbq_database):
-    """Function generates a SQL query and runs it against a Google Big Query database. The returned results are
+    """Function generates a SQL query and runs it against a Google BigQuery database. The returned results are
     then used in a second query designed to retrieve
 
     Args:
@@ -85,12 +86,13 @@ def regular_query(data, input_source, mod, gbq_db, url, query, gbq_database):
             (3) a string that indicates the name of the column that holds the source domain or source vocabulary
             (4) 'None' or a list of strings that are database names
         mod: A string that contains a character and is used to indicate whether or not a modifier should be used.
-        gbq_db: A Google Big Query object.
+        gbq_db: A Google BigQuery object.
         url: A dictionary of urls; each url represents an SQL query.
         query: A string containing the name of an SQL query.
         gbq_database: A string containing the name of a Google Big Query database.
 
     Returns:
+        A pandas dataframe.
 
     """
 
@@ -174,6 +176,7 @@ def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
 
 
 def main():
+
     ########################
     # GBQ: query an existing table
     databases = ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']
@@ -182,62 +185,95 @@ def main():
     # load queries
     url = {x.split(';')[0]: x.split(';')[1] for x in open('resources/github_gists.txt', 'r').read().split('\n')}
 
-    # load data from GoogleSheet
-    sht = 'ADHD_test'
-    all_data = GSProcessor(['Phenotype Definitions', sht])
-    all_data.data_download()
-    data = all_data.get_data().dropna(how='all', axis=1).dropna()
-    data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
-
     # create list to store information on source queries
     source_queries = [['wildcard_match', '%', ['str', 'source_id', 'source_domain', None, None]],
                       ['CSWM', '%', ['str', 'source_id', 'source_domain', None, None]],
-                      ['CSWM_Child', '%', ['str', 'source_id', 'source_domain', None, None]],
-                      ['CSWM_Desc', '%', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSWM_child', '%', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSWM_desc', '%', ['str', 'source_id', 'source_domain', None, None]],
                       ['exact_match', '', ['str', 'source_id', 'source_domain', None, None]],
                       ['CSEM', '', ['str', 'source_id', 'source_domain', None, None]],
-                      ['CSEM_Child', '', ['str', 'source_id', 'source_domain', None, None]],
-                      ['CSEM_Desc', '', ['str', 'source_id', 'source_domain', None, None]]]
+                      ['CSEM_child', '', ['str', 'source_id', 'source_domain', None, None]],
+                      ['CSEM_desc', '', ['str', 'source_id', 'source_domain', None, None]]]
 
     # create list to store information on standard queries
-    standard_queries = [['stand_terms', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
+    standard_queries = [['stand_terms', '', ['code', 'source_code', 'source_vocabulary', 'code_count',
                                              ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]],
-                        ['stand_terms_children', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
+                        ['stand_terms_children', '', ['code', 'source_code', 'source_vocabulary', 'code_count',
                                                       ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]],
-                        ['stand_terms_desc', '', ['code', 'source_code', 'source_vocabulary', 'CODE_DRG_COUNT',
+                        ['stand_terms_desc', '', ['code', 'source_code', 'source_vocabulary', 'code_count',
                                                   ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']]]]
 
-    for src_query in source_queries[0]:
-        source_results = regular_query(data, src_query[2], src_query[1], gbq_db, url, src_query[0], databases[0])
-        print(source_results[['source_string', 'source_code', 'source_vocabulary']].describe())
+    # list sheets to process
+    sheets = ['ADHD_179', 'Appendicitis_236', 'Crohns Disease_77', 'Hypothyroidism_14', 'Peanut Allergy_609',
+              'Steroid-Induced Osteonecrosis_155', 'Systemic Lupus Erythematosus_1058']
 
-        # write out source data to Google sheet
-        sht_new = '{0}_{1}'.format(sht, src_query[0])
-        all_data.create_worksheet(sht_new)
-        all_data.set_worksheet(sht_new)
-        gd.set_with_dataframe(all_data.get_worksheet(), source_results)
+    # loop over data sets
+    for sht in sheets:
+        print('\n' + '=' * len('Processing Phenotype: {0}'.format(sht)))
+        print('Processing Phenotype: {0}'.format(sht))
+        print('=' * len('Processing Phenotype: {0}'.format(sht)) + str('\n'))
 
-        # process second half of queries -- getting standard codes
-        for std_query in standard_queries:
-            data2 = source_results.copy()
-            data2 = data2.drop(['source_domain', 'source_name', 'input_type'], axis=1).drop_duplicates()
-            stand_results = regular_query(data2, std_query[2], std_query[1], gbq_db, url, std_query[0], databases[0])
+        # load data from GoogleSheet
+        all_data = GSProcessor(['Phenotype Definitions', sht])
+        all_data.data_download()
+        data = all_data.get_data().dropna(how='all', axis=1).dropna()
+        data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
 
-            # print descriptive stats
-            print(stand_results[['source_string', 'source_code', 'source_vocabulary']].describe())
-            print(stand_results[['standard_code', 'standard_vocabulary']].describe())
+        data_groups = data.groupby(['source_domain', 'input_type'])
+        # split this so that you are separating string-drug vs string-all others
 
-            # generate histograms and output for occurrence counts
-            descriptive(stand_results,
-                        '{0}_{1}_{2}: Occurrence Counts'.format(sht, src_query[0], std_query[0]),
-                        'Drug Exposure Occurrence (Count)',
-                        'Density')
+        for x in [x for x in data_groups.groups if 'String' in x[1]]:
+            temp_data = data_groups.get_group(x)
+            temp_data_name = '-'.join(x)
 
-            # write out standard data to Google sheet
-            sht_new = '{0}_{1}_{2}'.format(sht, src_query[0], std_query[0])
-            all_data.create_worksheet(sht_new)
-            all_data.set_worksheet(sht_new)
-            gd.set_with_dataframe(all_data.get_worksheet(), stand_results)
+            for src_query in [source_queries[0]]:
+                print('=' * len('Running Source Query: {0}'.format(src_query[0])))
+                print('Running Source Query: {0}'.format(src_query[0]))
+                print('=' * len('Running Source Query: {0}'.format(src_query[0])))
+
+                # run standard query
+                source_results = regular_query(temp_data, src_query[2], src_query[1], gbq_db, url, src_query[0],
+                                               databases[0])
+                print(source_results[['source_string', 'source_code']].describe())
+                print(source_results[['source_vocabulary']].describe())
+
+                # write out source data to Google sheet
+                spreadsheet_name = '{0}_{1}_{2}'.format(sht, temp_data_name
+                                                        , src_query[0])
+                tab_name = '_'.join(spreadsheet_name.split('_')[2:])
+
+                # create new spreadsheet class
+                all_data.create_spreadsheet(spreadsheet_name, 'callahantiff@gmail.com')
+                temp_data = GSProcessor([spreadsheet_name, tab_name])
+                temp_data.create_worksheet(tab_name)
+                temp_data.set_worksheet(tab_name)
+                temp_data.sheet_writer(temp_data, source_results)
+
+                # process second half of queries -- getting standard codes
+                for std_query in [standard_queries[0]]:
+                    print('=' * len('Running Standard Query: {0}'.format(std_query[0])))
+                    print('Running Standard Query: {0}'.format(std_query[0]))
+                    print('=' * len('Running Standard Query: {0}'.format(std_query[0])))
+
+                    data2 = source_results.copy()
+                    data2 = data2.drop(['source_domain', 'source_name', 'input_type'], axis=1).drop_duplicates()
+                    stand_results = regular_query(data2, std_query[2], std_query[1], gbq_db, url, std_query[0], databases[0])
+
+                    # print descriptive stats
+                    print(stand_results[['source_string', 'source_code']].describe())
+                    print(stand_results[['source_vocabulary']].describe())
+                    print(stand_results[['standard_code', 'standard_vocabulary']].describe())
+
+                    # # generate histograms and output for occurrence counts
+                    # descriptive(stand_results,
+                    #             '{0}_{1}_{2}: Occurrence Counts'.format(sht, tab_name, std_query[0]),
+                    #             'Drug Exposure Occurrence (Count)', 'Density')
+
+                    # write out standard data to Google sheet
+                    new_tab = '{0}_{1}'.format(tab_name, std_query[0])
+                    temp_data.create_worksheet(new_tab)
+                    temp_data.set_worksheet(new_tab)
+                    temp_data.sheet_writer(temp_data, stand_results)
 
     # ########################
     # # GBQ: create a new table -- after verifying mappings
