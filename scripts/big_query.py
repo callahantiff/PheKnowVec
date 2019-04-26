@@ -10,7 +10,7 @@ import datetime
 import oauth2client.service_account
 import pandas_gbq
 import requests
-import pandas as pd
+# import pandas as pd
 
 from datetime import datetime
 from google.oauth2 import service_account

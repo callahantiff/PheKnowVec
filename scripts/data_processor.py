@@ -7,7 +7,9 @@
 
 import gspread
 import gspread_dataframe as gd
+import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -57,12 +59,12 @@ class GSProcessor(object):
     def create_worksheet(self, sheet_name):
         """Takes a string as an argument and changes active tab in google sheets.
 
-                Args:
-                    sheet_name: A string containing the name of a tab in the current Google Sheet.
+        Args:
+            sheet_name: A string containing the name of a tab in the current Google Sheet.
 
-                Return:
-                     None.
-                """
+        Returns:
+             None.
+        """
 
         self.get_sheet().add_worksheet(title=sheet_name, rows=1, cols=1)
 
@@ -74,7 +76,7 @@ class GSProcessor(object):
             spreadsheet_name: A string that contains a spreadsheet name.
             email_address: A a string that contains an email address.
 
-        Return:
+        Returns:
             None.
         """
         sh = gspread.authorize(self.cred).create(spreadsheet_name)
@@ -86,7 +88,7 @@ class GSProcessor(object):
         Args:
             sheet_name: A string containing the name of a tab in the current Google Sheet.
 
-        Return:
+        Returns:
              None.
         """
         self.worksheet = self.sheet.worksheet(sheet_name)
@@ -101,7 +103,7 @@ class GSProcessor(object):
             spreadsheet: A string that contains an instance of the class.
             results: A pandas dataframe.
 
-        Return:
+        Returns:
              None
         """
 
@@ -113,7 +115,7 @@ class GSProcessor(object):
         Args:
             new_data: A string containing the name of a tab in the current Google Sheet.
 
-        Return:
+        Returns:
              None.
         """
         self.data = new_data
@@ -168,17 +170,74 @@ class GSProcessor(object):
 
         else:
             if data_type is not None:
-                table_name = tables[[i for i, s in enumerate(tables) if set(temp_data['source_domain']).pop() in s][0]]
-                source1 = set(list(temp_data[input_source[1]]))
-                source2 = set(list(temp_data[input_source[2]]))
-                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"' + table_name + table_name
+                table_name = tables[[i for i, s in enumerate(tables)
+                                     if set(temp_data['standard_domain']).pop().lower() in s][0]]
+                source1 = set(list(temp_data['standard_code']))
+                source2 = set(list(temp_data['standard_vocabulary']))
+                source3 = set(list(temp_data['standard_domain'])).pop()
+                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
+                      + source3 + '"', table_name
 
             else:
                 source1 = set(list(temp_data[input_source[1]]))
                 source2 = set(list(temp_data[input_source[2]]))
-                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+                source3 = set(list(temp_data[input_source[3]])).pop()
+                source4 = input_source[6]
+                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
+                      + source3 + '"', '"' + source4 + '"'
 
         if not len(source1) and len(source2) >= 1:
             raise ValueError('Error - check your input data, important variables may be missing')
         else:
             return res
+
+    @staticmethod
+    def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
+        """Function takes a pandas data frame, and three strings that contain information about the data frame. The
+        function then derives and prints descriptive statistics and histograms.
+
+        Args:
+            data: a pandas dataframe.
+            plot_title: A string containing a title for the histogram.
+            plot_x_axis: A string containing a x-axis label for the histogram.
+            plot_y_axis: A string containing a y-axis label for the histogram.
+
+        Returns:
+            None
+        """
+
+        # subset data to only include standard concepts and counts
+        dat_plot = data.copy()
+        plt_dat_chco = dat_plot[['standard_code', 'CHCO_count']].drop_duplicates()
+        plt_dat_mimic = dat_plot[['standard_code', 'MIMICIII_count']].drop_duplicates()
+
+        # get counts of drug occurrences by standard codes
+        # CHCO
+        print(plt_dat_chco[['standard_code']].describe())
+        num_c = plt_dat_chco.loc[plt_dat_chco['CHCO_count'] > 0.0]['CHCO_count'].sum()
+        denom_c = len(set(list(plt_dat_chco.loc[plt_dat_chco['CHCO_count'] > 0.0]['standard_code'])))
+        print('CHCO: There are {0} Unique Standard Codes with Occurrence > 0'.format(denom_c))
+        print('CHCO: The Average Occurrences per Standard Code is: {0} \n'.format(num_c / denom_c))
+
+        # MIMIC
+        print(plt_dat_mimic[['standard_code']].describe())
+        num_m = plt_dat_mimic.loc[plt_dat_mimic['MIMICIII_count'] > 0.0]['MIMICIII_count'].sum()
+        denom_m = len(set(list(plt_dat_mimic.loc[plt_dat_mimic['MIMICIII_count'] > 0.0]['standard_code'])))
+        print('MIMICIII: There are {0} Unique Standard Codes with Occurrence > 0'.format(denom_m))
+        print('MIMICIII: The Average Occurrences per Standard Code is: {0} \n'.format(num_m / denom_m))
+
+        # generate plots
+        f = plt.figure()
+        with sns.axes_style("darkgrid"):
+            f.add_subplot(1, 2, 1)
+            sns.distplot(list(plt_dat_mimic['MIMICIII_count']), color="dodgerblue", label="MIMIC-III Count")
+            plt.legend()
+            plt.ylabel(plot_y_axis)
+            f.add_subplot(1, 2, 2)
+            sns.distplot(list(plt_dat_chco['CHCO_count']), color="red", label="CHCO Count")
+            plt.legend()
+        f.text(0.5, 0.98, plot_title, ha='center', va='center')
+        f.text(0.5, 0.01, plot_x_axis, ha='center', va='center')
+        plt.show()
+
+        return None
