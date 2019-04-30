@@ -84,9 +84,8 @@ class GBQ(object):
 
         start = datetime.now()
         print('Started processing query: {}'.format(start))
-
         query = requests.get(url, allow_redirects=True).text.format(*str_args)
-        # print(query)
+
         results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project, credentials=self.auth2)
 
         finish = datetime.now()

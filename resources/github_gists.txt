@@ -13,4 +13,4 @@ csem_desc;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/
 stand_terms;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/standard_terms.sql
 stand_terms_child;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/standard_terms_child.sql
 stand_terms_desc;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/standard_terms_desc.sql
-code_count;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/code_count.sql
+code_count;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/7c4c59bb9ddd02988bf3a922442acba99ed023e7/code_count.sql

@@ -176,7 +176,7 @@ class GSProcessor(object):
                 source2 = set(list(temp_data['standard_vocabulary']))
                 source3 = set(list(temp_data['standard_domain'])).pop()
                 res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
-                      + source3 + '"', table_name
+                      + source3 + '"', table_name, table_name.split('_')[0]
 
             else:
                 source1 = set(list(temp_data[input_source[1]]))

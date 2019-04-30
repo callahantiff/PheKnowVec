@@ -8,6 +8,8 @@
 # import gspread_dataframe as gd
 import numpy as np
 import pandas as pd
+from requests.exceptions import ConnectionError
+import time
 
 from scripts.big_query import *
 from scripts.data_processor import GSProcessor
@@ -79,7 +81,7 @@ def domain_occurrence(data, url=None, databases=None):
         merged = pd.concat(query_results).drop_duplicates()
 
         # rename column
-        merged.rename(columns={'drg_count': str(db_.split('_')[0]) + '_count'}, inplace=True)
+        merged.rename(columns={'occ_count': str(db_.split('_')[0]) + '_count'}, inplace=True)
         merged_res.append(merged)
 
     # merge results from the input databases together
@@ -128,7 +130,8 @@ def regular_query(data, input_source, mod, gbq_db, url, query, gbq_database):
         merged_results = pd.merge(left=data[['source_code', 'source_string']].drop_duplicates(),
                                   right=cont_results, how='right', on='source_code').drop_duplicates()
 
-    if input_source[0] != 'code':
+    if input_source[0] != 'code' or len(merged_results) == 0:
+        # we don't want to get occurrence counts for source string queries and when no query results are returned
         print('There are {0} unique rows in the results dataframe'.format(len(merged_results)))
         return merged_results
 
@@ -169,7 +172,7 @@ def main():
               'Steroid-Induced Osteonecrosis_155', 'Systemic Lupus Erythematosus_1058']
 
     # loop over data sets
-    for sht in sheets[1:]:
+    for sht in sheets[:2]:
         print('\n' + '=' * len('Processing Phenotype: {0}'.format(sht)))
         print('Processing Phenotype: {0}'.format(sht))
         print('=' * len('Processing Phenotype: {0}'.format(sht)) + str('\n'))
@@ -179,7 +182,6 @@ def main():
         all_data.data_download()
         data = all_data.get_data().dropna(how='all', axis=1).dropna()
         data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
-
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         for x in [x for x in data_groups.groups if 'String' in x[1]]:
@@ -187,76 +189,84 @@ def main():
             grp_data_name = x[0]
             std_vocab = x[2]
 
-            for src_query in source_queries[1:]:
+            print('_' * len('Running Clinical Domain: {0}'.format(grp_data_name)))
+            print('Running Source Query: {0} \n'.format(grp_data_name))
+
+            for src_query in source_queries:
                 print('=' * len('Running Source Query: {0}'.format(src_query[0])))
                 print('Running Source Query: {0}'.format(src_query[0]))
                 print('=' * len('Running Source Query: {0}'.format(src_query[0])))
 
                 # run standard query
-                source_results = regular_query(grp_data,
-                                               src_query[2],
-                                               src_query[1],
-                                               gbq_db,
-                                               url,
-                                               src_query[0],
+                source_results = regular_query(grp_data, src_query[2], src_query[1], gbq_db, url, src_query[0],
                                                databases[0])
 
-                print(source_results[['source_string', 'source_code']].describe())
-                print(source_results[['source_vocabulary']].describe())
+                if len(source_results) != 0:
+                    print(source_results[['source_string', 'source_code']].describe())
+                    print(source_results[['source_vocabulary']].describe())
 
-                # update column order
-                source_results = source_results[['input_type', 'source_string', 'source_code', 'source_name',
-                                                 'source_vocabulary', 'source_domain']]
+                    # write out source data to Google sheet
+                    spreadsheet_name = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), grp_data_name.upper(), src_query[0])
+                    tab_name = '_'.join(spreadsheet_name.split('_')[2:])
 
-                # write out source data to Google sheet
-                spreadsheet_name = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), grp_data_name.upper(), src_query[0])
-                tab_name = '_'.join(spreadsheet_name.split('_')[2:])
+                    # create new spreadsheet class
+                    all_data.create_spreadsheet(spreadsheet_name, 'callahantiff@gmail.com')
+                    temp_data = GSProcessor([spreadsheet_name, tab_name])
+                    temp_data.create_worksheet(tab_name)
+                    temp_data.set_worksheet(tab_name)
+                    temp_data.sheet_writer(temp_data, source_results[['source_string', 'source_code', 'source_name',
+                                                                      'source_vocabulary']])
 
-                # create new spreadsheet class
-                all_data.create_spreadsheet(spreadsheet_name, 'callahantiff@gmail.com')
-                temp_data = GSProcessor([spreadsheet_name, tab_name])
-                temp_data.create_worksheet(tab_name)
-                temp_data.set_worksheet(tab_name)
-                temp_data.sheet_writer(temp_data, source_results)
+                    # pause to avoid time out
+                    time.sleep(10)
 
-                # process second half of queries -- getting standard codes
-                for std_query in standard_queries:
-                    print('=' * len('Running Standard Query: {0}'.format(std_query[0])))
-                    print('Running Standard Query: {0}'.format(std_query[0]))
-                    print('=' * len('Running Standard Query: {0}'.format(std_query[0])))
+                    # process second half of queries -- getting standard codes
+                    for std_query in standard_queries:
+                        print('=' * len('Running Standard Query: {0}'.format(std_query[0])))
+                        print('Running Standard Query: {0}'.format(std_query[0]))
+                        print('=' * len('Running Standard Query: {0}'.format(std_query[0])))
 
-                    src_data = source_results.copy()
-                    src_data = src_data.drop(['source_name', 'input_type'], axis=1).drop_duplicates()
-                    stand_results = regular_query(src_data,
-                                                  std_query[2] + [std_vocab],
-                                                  std_query[1],
-                                                  gbq_db,
-                                                  url,
-                                                  std_query[0],
-                                                  databases[0])
+                        src_data = source_results.copy()
+                        src_data = src_data.drop(['source_name', 'input_type'], axis=1).drop_duplicates()
+                        stand_results = regular_query(src_data, std_query[2] + [std_vocab], std_query[1], gbq_db,
+                                                      url, std_query[0], databases[0])
 
-                    # print descriptive stats
-                    print(stand_results[['source_string', 'source_code']].describe())
-                    print(stand_results[['source_vocabulary']].describe())
-                    print(stand_results[['standard_code', 'standard_vocabulary']].describe())
+                        if len(stand_results) != 0:
+                            # print descriptive stats
+                            print(stand_results[['source_string', 'source_code']].describe())
+                            print(stand_results[['source_vocabulary']].describe())
+                            print(stand_results[['standard_code', 'standard_vocabulary']].describe())
 
-                    # order columns
-                    stand_results = stand_results[['source_string', 'source_code', 'source_name',
-                                                   'source_vocabulary', 'source_domain', 'standard_code',
-                                                   'standard_name', 'standard_vocabulary', 'standard_domain',
-                                                   'CHCO_count', 'MIMICIII_count']]
+                            # order columns
+                            stand_results = stand_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
+                                                           'standard_code', 'standard_name', 'standard_vocabulary',
+                                                           'CHCO_count', 'MIMICIII_count']]
 
-                    # # generate histograms and output for occurrence counts
-                    # temp_data.descriptive(stand_results,
-                    #                       '{0}_{1}_{2}: {3} Occurrence Counts'.format(sht, tab_name, std_query[0],
-                    #                                                                   temp_data_name),
-                    #                       'Drug Exposure Occurrence (Count)', 'Density')
+                            # # generate histograms and output for occurrence counts
+                            # temp_data.descriptive(stand_results,
+                            #                       '{0}_{1}_{2}: {3} Occurrence Counts'.format(sht, tab_name, std_query[0],
+                            #                                                                   temp_data_name),
+                            #                       'Drug Exposure Occurrence (Count)', 'Density')
 
-                    # write out standard data to Google sheet
-                    new_tab = '{0}_{1}'.format(tab_name, std_query[0])
-                    temp_data.create_worksheet(new_tab)
-                    temp_data.set_worksheet(new_tab)
-                    temp_data.sheet_writer(temp_data, stand_results)
+                            # make sure connection is still live before writing out data
+                            new_tab = '{0}_{1}'.format(tab_name, std_query[0])
+
+                            try:
+                                temp_data.create_worksheet(new_tab)
+                                temp_data.set_worksheet(new_tab)
+                                temp_data.sheet_writer(temp_data, stand_results)
+
+                            except ConnectionError:
+                                # write out standard data to Google sheet
+                                temp_data = GSProcessor([spreadsheet_name, tab_name])
+                                temp_data.create_worksheet(new_tab)
+                                temp_data.set_worksheet(new_tab)
+                                temp_data.sheet_writer(temp_data, stand_results)
+
+
+
+
+
 
     # ########################
     # # GBQ: create a new table -- after verifying mappings
