@@ -8,10 +8,13 @@
 import gspread
 import gspread_dataframe as gd
 import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
 import seaborn as sns
 
 from oauth2client.service_account import ServiceAccountCredentials
+
+from scripts.big_query import *
 
 
 class GSProcessor(object):
@@ -122,12 +125,12 @@ class GSProcessor(object):
         print('Updated Instance -- Set New Pandas Dataframe')
 
     @staticmethod
-    def code_format(temp_data, input_source, mod='', data_type=None):
+    def code_format(data, input_source, mod='', data_type=None):
         """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
         list of sets.
 
         Args:
-            temp_data: A pandas data frame.
+            data: A pandas data frame.
             input_source: A list of strings that represent columns in a pandas dataframe. The function assumes that
                 the list contains the following:
                     (1) a string that indicates if the query uses input strings or codes
@@ -158,30 +161,30 @@ class GSProcessor(object):
 
         if 'code' not in input_source[0] and mod == '':
             format_nomod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
-            source1 = set(list(temp_data[input_source[1]].apply(format_nomod)))
-            source2 = set(list(temp_data[input_source[2]]))
+            source1 = set(list(data[input_source[1]].apply(format_nomod)))
+            source2 = set(list(data[input_source[2]]))
             res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
 
         elif 'code' not in input_source[0] and mod != '':
             format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(x.strip('"').lower())
-            source1 = set(list(temp_data[input_source[1]].apply(format_mod)))
-            source2 = set(list(temp_data[input_source[2]]))
+            source1 = set(list(data[input_source[1]].apply(format_mod)))
+            source2 = set(list(data[input_source[2]]))
             res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
 
         else:
             if data_type is not None:
                 table_name = tables[[i for i, s in enumerate(tables)
-                                     if set(temp_data['standard_domain']).pop().lower() in s][0]]
-                source1 = set(list(temp_data['standard_code']))
-                source2 = set(list(temp_data['standard_vocabulary']))
-                source3 = set(list(temp_data['standard_domain'])).pop()
+                                     if set(data['standard_domain']).pop().lower() in s][0]]
+                source1 = set(list(data['standard_code']))
+                source2 = set(list(data['standard_vocabulary']))
+                source3 = set(list(data['standard_domain'])).pop()
                 res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
                       + source3 + '"', table_name, table_name.split('_')[0]
 
             else:
-                source1 = set(list(temp_data[input_source[1]]))
-                source2 = set(list(temp_data[input_source[2]]))
-                source3 = set(list(temp_data[input_source[3]])).pop()
+                source1 = set(list(data[input_source[1]]))
+                source2 = set(list(data[input_source[2]]))
+                source3 = set(list(data[input_source[3]])).pop()
                 source4 = input_source[6]
                 res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
                       + source3 + '"', '"' + source4 + '"'
@@ -190,6 +193,139 @@ class GSProcessor(object):
             raise ValueError('Error - check your input data, important variables may be missing')
         else:
             return res
+
+    def count_merger(self, databases, merged_results):
+        """Function that merges two pandas data frames together and reformats the merged dataframe columns.
+
+        Args:
+            databases: A list of Google BigQuery databases.
+            merged_results: A list of pandas dataframes to be merged.
+
+        Returns:
+            A pandas dataframe with merged and de-duplicated results.
+
+        """
+        col_set1 = set(list(merged_results[0])).intersection(set(list(merged_results[1])))
+        merged_comb = pd.merge(left=merged_results[0], right=merged_results[1], how='outer',
+                               left_on=list(col_set1), right_on=list(col_set1))
+
+        # aggregate merged count results by standard_code
+        db1_name = str(databases[0].split('_')[0]) + '_count'
+        db2_name = str(databases[1].split('_')[0]) + '_count'
+        merged_agg = merged_comb.fillna(0).groupby('standard_code', as_index=False).agg(
+            {db1_name: lambda x: sum(set(x)), db2_name: lambda x: sum(set(x))})
+
+        # combine results with full dataset
+        col_set2 = set(list(self.data)).intersection(set(list(merged_agg)))
+        merged_full = pd.merge(left=self.data, right=merged_agg, how='outer', left_on=list(col_set2),
+                               right_on=list(col_set2))
+
+        # replace rows with no counts, stored as 'NaN' with zero
+        merged_full[[db1_name, db2_name]] = merged_full[[db1_name, db2_name]].fillna(0)
+        return merged_full.drop_duplicates()
+
+    def domain_occurrence(self, project, url=None, databases=None):
+        """Function takes a pandas dataframe and a string containing a url which redirects to a GitHubGist SQL query.
+        The
+        function formats a query and runs it against the input database(s). This function assumes that it will be passed
+        two relational databases as an argument.
+
+        Args:
+            project: A Google BigQuery project.
+            url: A string containing a url which redirects to a GitHub Gist SQL query.
+            databases: A list where the items are 'None' or a list of strings that are database names.
+
+        Returns:
+            A pandas dataframe.
+        """
+
+        merged_res = []
+
+        for db_ in databases:
+            print('\n' + '#' * 50 + '\n' + 'Running query against {0}'.format(db_))
+            db = GBQ(project, db_)
+
+            # generate and run queries against SQL database
+            query_results = []
+            batch = self.data.groupby(np.arange(len(self.data)) // 15000)
+
+            for name, group in batch:
+                print('\n Processing chunk {0} of {1}'.format(name + 1, batch.ngroups))
+
+                sql_args = self.code_format(group, ['code'], '', url.split('/')[-1])
+                res = db.gbq_query(url, (db_, *sql_args))
+                query_results.append(res.drop_duplicates())
+
+            merged = pd.concat(query_results).drop_duplicates()
+
+            # rename column
+            merged.rename(columns={'occ_count': str(db_.split('_')[0]) + '_count'}, inplace=True)
+            merged_res.append(merged)
+
+        # reset data
+        self.set_data(merged_res)
+
+        # merge results from the input databases together
+        return self.count_merger(databases, self.data)
+
+    def regular_query(self, input_source, project, url, gbq_database):
+        """Function generates a SQL query and runs it against a Google BigQuery database. The returned results are
+        then used in a second query designed to retrieve
+
+        Args:
+            input_source: A list of items needed to query a database:
+                - A string that contains the name of a query
+                - A string that contains a character and is used to indicate whether or not a modifier should be used.
+                - A list of strings that represent columns in a pandas dataframe:
+                (1) a string that indicates if the query uses input strings or codes
+                (2) a string that indicates the name of the column that holds the source codes or strings
+                (3) a string that indicates the name of the column that holds the source domain or source vocabulary
+                (4) 'None' or a list of strings that are database names
+                (5) 'None' or a string that is used to signal whether or not a sub-query should be performed.
+            project: A Google BigQuery project.
+            url: A dictionary of urls; each url represents an SQL query.
+            gbq_database: A string containing the name of a Google Big Query database.
+
+            Example of input_source:
+                ['wildcard_match', '%', ['str', 'source_id', 'source_domain', None, None]]
+
+        Returns:
+            A pandas dataframe.
+
+        """
+        # initialize GBQ object
+        gbq_db = GBQ(project, gbq_database)
+
+        # create an empty list to store results
+        query_results = []
+        batch = self.data.groupby(np.arange(len(self.data)) // 15000)
+
+        for name, group in batch:
+            print('\n Processing chunk {0} of {1}'.format(name + 1, batch.ngroups))
+            sql_args = self.code_format(group, input_source[2], input_source[1])
+            res = gbq_db.gbq_query(url[input_source[0]], (gbq_database, *sql_args))
+            query_results.append(res.drop_duplicates())
+
+        # get occurrence counts
+        cont_results = pd.concat(query_results).drop_duplicates()
+
+        # add back source_string (only for standard queries)
+        if 'source_string' in cont_results:
+            merged_results = cont_results.copy()
+        else:
+            merged_results = pd.merge(left=self.data[['source_code', 'source_string']].drop_duplicates(),
+                                      right=cont_results, how='right', on='source_code').drop_duplicates()
+
+        # re-set data
+        self.set_data(merged_results)
+
+        if input_source[0] != 'code' or len(self.data) == 0:
+            # we don't want to get occurrence counts for source string queries and when no query results are returned
+            print('There are {0} unique rows in the results dataframe'.format(len(self.data)))
+            return self.data
+
+        else:
+            return self.domain_occurrence(project, url[input_source[2][4]], input_source[2][5])
 
     @staticmethod
     def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
