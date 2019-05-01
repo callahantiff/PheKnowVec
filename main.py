@@ -49,6 +49,8 @@ def main():
         all_data.data_download()
         data = all_data.get_data().dropna(how='all', axis=1).dropna()
         data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
+
+        # group data for processing
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         for x in [x for x in data_groups.groups if 'String' in x[1]]:
@@ -65,8 +67,6 @@ def main():
                 source_results = all_data.regular_query(src_query, 'sandbox-tc', url, databases[0])
 
                 if len(source_results) != 0:
-                    print(source_results[['source_string', 'source_code']].describe())
-                    print(source_results[['source_vocabulary']].describe())
 
                     # write out source data to Google sheet
                     spreadsheet_name = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), x[0].upper(), src_query[0])
@@ -83,7 +83,7 @@ def main():
                     temp_data.set_worksheet(tab_name)
                     temp_data.sheet_writer(temp_data, src_results)
 
-                    # pause to avoid time out
+                    # pause to avoid over whelming the API
                     time.sleep(10)
 
                     # process second half of queries -- getting standard codes
@@ -99,10 +99,6 @@ def main():
                         std_results = all_data.regular_query(std_query_mod, 'sandbox-tc', url, databases[0])
 
                         if len(std_results) != 0:
-                            # print descriptive stats
-                            print(std_results[['source_string', 'source_code']].describe())
-                            print(std_results[['source_vocabulary']].describe())
-                            print(std_results[['standard_code', 'standard_vocabulary']].describe())
 
                             # order columns
                             stand_results = std_results[['source_string', 'source_code', 'source_name',
