@@ -31,7 +31,8 @@ class GSProcessor(object):
 
     def __init__(self, sheet_info):
         self.auth = 'resources/programming/Google_API/secret_client_gs.json'
-        self.cred = ServiceAccountCredentials.from_json_keyfile_name(self.auth, 'https://www.googleapis.com/auth/drive')
+        self.scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        self.cred = ServiceAccountCredentials.from_json_keyfile_name(self.auth, self.scope)
         self.sheet_info = sheet_info
         self.sheet = gspread.authorize(self.cred).open(self.sheet_info[0])
         self.worksheet = ''
@@ -69,6 +70,21 @@ class GSProcessor(object):
         """
 
         self.get_sheet().add_worksheet(title=sheet_name, rows=1, cols=1)
+
+    def list_spreadsheet_tabs(self, sheet_name):
+        """
+
+        Args:
+            sheet_name: A string containing the name of a GoogleSheet.
+
+        Returns:
+             A list of tabs in a spreadsheet.
+        """
+
+        sh = gspread.authorize(self.cred).open(sheet_name)
+        tabs = [str(x).split("'")[1] for x in list(sh.worksheets())]
+
+        return tabs
 
     def create_spreadsheet(self, spreadsheet_name, email_address):
         """Takes a string that contains a spreadsheet name and a string that contains the email address of who the

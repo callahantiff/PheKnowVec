@@ -1,10 +1,11 @@
 ####################
 # main.py
-# version 1.0.0
 # Python 3.6.2
 ####################
 
 import copy
+import time as time
+
 from scripts.data_processor import GSProcessor
 
 
@@ -35,13 +36,15 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
         # copy query list before inserting a new list into it
         std_query_mod = copy.deepcopy(std_query)
-        std_query_mod[2].insert(len(std_query_mod[2]), standard_vocab)
+        std_query_mod[2].insert(len(std_query_mod[2]), standard_vocab[2])
 
         # run query
         std_results = data_class.regular_query(std_query_mod, 'sandbox-tc', url, database)
 
         # make sure the query returned valid results
-        if len(std_results) != 0 or len(set(list(std_results['CHCO_count']) + list(std_results['MIMICIII_count']))) > 1:
+        counts = len(set(list(std_results['CHCO_count']) + list(std_results['MIMICIII_count'])))
+
+        if len(std_results) != 0 and counts > 1:
 
             # order columns
             std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
@@ -72,6 +75,10 @@ def write_data(spreadsheet_name, tab_name, results):
 
     """
 
+    # pause for api
+    time.sleep(10)
+
+    # write data to GoogleSheet
     temp_data = GSProcessor([spreadsheet_name, tab_name])
     temp_data.create_worksheet(tab_name)
     temp_data.set_worksheet(tab_name)
@@ -117,12 +124,22 @@ def src_queries(data_class, src_type, data, url, database, queries, standard_voc
 
         # make sure the query returned valid results
         if len(src_results) != 0:
+
+            # order columns and rows
+            source_res_cpy = src_results.copy()
+            source_res_cpy = source_res_cpy[['source_string', 'source_code', 'source_name', 'source_vocabulary']]
+            source_res_cpy = source_res_cpy.sort_values(by=['source_string', 'source_code', 'source_vocabulary'],
+                                                        ascending=True)
             # create spreadsheet and write out results
             sheet_name = '{0}_{1}_{2}'.format(phenotype.split('_')[0].upper(), standard_vocab[0].upper(), query[0])
-            data_class.create_spreadsheet(sheet_name, 'callahantiff@gmail.com')
+            tab_name = '{0}'.format(query[0])
+            temp_data = GSProcessor([sheet_name, tab_name])
+            temp_data.create_spreadsheet(sheet_name, 'callahantiff@gmail.com')
+
+            write_data(sheet_name, tab_name, source_res_cpy)
 
             # run standard queries and write results
-            standard_queries(data_class, data, queries[-1], url, database, standard_vocab, sheet_name)
+            standard_queries(data_class, src_results, queries[-1], url, database, standard_vocab, sheet_name)
 
     return None
 
@@ -196,11 +213,11 @@ def main():
                 write_data(sheet_name, '_'.join(sheet_name.split('_')[2:]), source_res_cpy)
 
                 # get standard terms for initial query
-                standard_queries(all_data, source_results, standard, url, databases[0], domain[2], sheet_name)
+                standard_queries(all_data, source_results, standard, url, databases[0], domain, sheet_name)
 
                 # run wildcard and exact match source and standard code queries
-                queries = [wild, exact, standard]
-                src_queries(all_data, query[0], source_results, url, databases[0], queries, domain[2], sheet_name)
+                queries = [wild[2:], exact, standard[-1:]]
+                src_queries(all_data, query[0], source_results, url, databases[0], queries, domain, sht)
 
     # ########################
     # # GBQ: create a new table -- after verifying mappings
