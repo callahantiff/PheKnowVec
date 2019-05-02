@@ -1,6 +1,5 @@
 #########################
 # data_processor.py
-# version 1.0.0
 # python 3.6.2
 #########################
 
@@ -107,7 +106,7 @@ class GSProcessor(object):
             results: A pandas dataframe.
 
         Returns:
-             None
+             None.
         """
 
         gd.set_with_dataframe(spreadsheet.get_worksheet(), results)
@@ -123,76 +122,6 @@ class GSProcessor(object):
         """
         self.data = new_data
         print('Updated Instance -- Set New Pandas Dataframe')
-
-    @staticmethod
-    def code_format(data, input_source, mod='', data_type=None):
-        """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
-        list of sets.
-
-        Args:
-            data: A pandas data frame.
-            input_source: A list of strings that represent columns in a pandas dataframe. The function assumes that
-                the list contains the following:
-                    (1) a string that indicates if the query uses input strings or codes
-                    (2) a string that indicates the name of the column that holds the source codes or strings
-                    (3) a string that indicates the name of the column that holds the source domain or source vocabulary
-                    (4) 'None' or a list of strings that are database names
-            data_type: A string containing the name of a query.
-            mod: A string that indicates whether or not a modifier should be used.
-
-        Returns:
-             When input_source includes 'string', then list of joined sets is returned, where each set contains an SQL
-             parameter. For example:
-
-            ('"WHEN lower(concept_name) LIKE '%clonazepam%' THEN '%clonazepam%'', '"Drug"')
-
-            When input_source includes 'code', then list of joined sets is returned, where each set contains an SQL
-             parameter. For example:
-
-            ('"348.1", "348.2", "348.3"', '"ICD9CM"', '"SNOMED"')
-
-        Raises:
-            An error occurs when the input data frame does not contain required data (i.e. source codes, source vocab,
-            and standard vocabulary information.
-        """
-
-        # get data
-        tables = ['drug_exposure', 'condition_occurrence', 'procedure_occurrence', 'observation', 'measurement']
-
-        if 'code' not in input_source[0] and mod == '':
-            format_nomod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
-            source1 = set(list(data[input_source[1]].apply(format_nomod)))
-            source2 = set(list(data[input_source[2]]))
-            res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
-
-        elif 'code' not in input_source[0] and mod != '':
-            format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(x.strip('"').lower())
-            source1 = set(list(data[input_source[1]].apply(format_mod)))
-            source2 = set(list(data[input_source[2]]))
-            res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
-
-        else:
-            if data_type is not None:
-                table_name = tables[[i for i, s in enumerate(tables)
-                                     if set(data['standard_domain']).pop().lower() in s][0]]
-                source1 = set(list(data['standard_code']))
-                source2 = set(list(data['standard_vocabulary']))
-                source3 = set(list(data['standard_domain'])).pop()
-                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
-                      + source3 + '"', table_name, table_name.split('_')[0]
-
-            else:
-                source1 = set(list(data[input_source[1]]))
-                source2 = set(list(data[input_source[2]]))
-                source3 = set(list(data[input_source[3]])).pop()
-                source4 = input_source[6]
-                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
-                      + source3 + '"', '"' + source4 + '"'
-
-        if not len(source1) and len(source2) >= 1:
-            raise ValueError('Error - check your input data, important variables may be missing')
-        else:
-            return res
 
     def count_merger(self, databases, merged_results):
         """Function that merges two pandas data frames together and reformats the merged dataframe columns.
@@ -262,11 +191,8 @@ class GSProcessor(object):
             merged.rename(columns={'occ_count': str(db_.split('_')[0]) + '_count'}, inplace=True)
             merged_res.append(merged)
 
-        # reset data
-        self.set_data(merged_res)
-
         # merge results from the input databases together
-        return self.count_merger(databases, self.data)
+        return self.count_merger(databases, merged_res)
 
     def regular_query(self, input_source, project, url, gbq_database):
         """Function generates a SQL query and runs it against a Google BigQuery database. The returned results are
@@ -319,13 +245,89 @@ class GSProcessor(object):
         # re-set data
         self.set_data(merged_results)
 
-        if input_source[0] != 'code' or len(self.data) == 0:
-            # we don't want to get occurrence counts for source string queries and when no query results are returned
+        if 'code_count' not in input_source[2] or len(self.data) == 0:
+            # we don't want occurrence counts for source string queries or when no query results are returned
             print('There are {0} unique rows in the results dataframe'.format(len(self.data)))
             return self.data
 
         else:
             return self.domain_occurrence(project, url[input_source[2][4]], input_source[2][5])
+
+    @staticmethod
+    def code_format(data, input_source, mod='', data_type=None):
+        """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
+        list of sets.
+
+        Args:
+            data: A pandas data frame.
+            input_source: A list of strings that represent columns in a pandas dataframe. The function assumes that
+                the list contains the following:
+                    (1) a string that indicates if the query uses input strings or codes
+                    (2) a string that indicates the name of the column that holds the source codes or strings
+                    (3) a string that indicates the name of the column that holds the source domain or source vocabulary
+                    (4) 'None' or a list of strings that are database names
+            mod: A string that indicates whether or not a modifier should be used.
+            data_type: A string containing the name of a query.
+
+        Returns:
+             When input_source includes 'string', then list of joined sets is returned, where each set contains an SQL
+             parameter. For example:
+
+            ('"WHEN lower(concept_name) LIKE '%clonazepam%' THEN '%clonazepam%'', '"Drug"')
+
+            When input_source includes 'code', then list of joined sets is returned, where each set contains an SQL
+             parameter. For example:
+
+            ('"348.1", "348.2", "348.3"', '"ICD9CM"', '"SNOMED"')
+
+        Raises:
+            An error occurs when the input data frame does not contain required data (i.e. source codes, source vocab,
+            and standard vocabulary information.
+        """
+
+        # get data
+        tables = ['drug_exposure', 'condition_occurrence', 'procedure_occurrence', 'observation', 'measurement']
+
+        if 'code' not in input_source[0]:
+            if mod == '':
+                format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
+            else:
+                format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(x.strip('"').lower())
+
+            source1 = set(list(data[input_source[1]].apply(format_mod)))
+            source2 = set(list(data[input_source[2]]))
+            res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+        else:
+            # to get occurrence counts
+            if data_type is not None:
+                source1 = set(list(data['standard_code']))
+                source2 = set(list(data['standard_vocabulary']))
+                source3 = set(list(data['standard_domain'])).pop()
+                table_name = tables[[i for i, s in enumerate(tables) if source3.lower() in s][0]]
+                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
+                      + source3 + '"', table_name, table_name.split('_')[0]
+
+            else:
+                source1 = set(list(data[input_source[1]]))
+                source2 = set(list(data[input_source[2]]))
+                source3 = set(list(data[input_source[3]])).pop()
+
+                # to get source concept_codes
+                if len(input_source) < 6:
+                    res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"' \
+                          + source3 + '"'
+
+                # to get standard terms
+                else:
+                    source4 = input_source[6]
+                    res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
+                          + source3 + '"', '"' + source4 + '"'
+
+        if not len(source1) and len(source2) >= 1:
+            raise ValueError('Error - check your input data, important variables may be missing')
+        else:
+            return res
 
     @staticmethod
     def descriptive(data, plot_title, plot_x_axis, plot_y_axis):

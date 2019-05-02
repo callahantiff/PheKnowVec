@@ -5,43 +5,160 @@
 ####################
 
 import copy
-import time
-
 from scripts.data_processor import GSProcessor
+
+
+def standard_queries(data_class, data, queries, url, database, standard_vocab, spreadsheet_name):
+    """Processes a pandas dataframe containing OMOP source concept_codes by mapping these codes to concept_ids in a
+    standard OMOP vocabulary. These mapped codes are then written to a Google sheet via the GoogleDrive API.
+
+    Args:
+        data_class: A GoogleSheets class instance.
+        data: A pandas dataframe.
+        queries: A list of standard queries.
+        url: A dictionary where keys are query names and values are url strings.
+        database: A string that points to a Google BigQuery database.
+        standard_vocab: A string that contains the name of a OMOP standard vocabulary to map source codes to.
+        spreadsheet_name: A string containing the name of a GoogleSheet spreadsheet.
+
+    Returns:
+        None.
+    """
+
+    # process second half of queries -- getting standard codes
+    for std_query in queries:
+
+        print('\n', '=' * 25, 'Running Standard Query: {0}'.format(std_query[0]), '=' * 25, '\n')
+
+        # set data
+        data_class.set_data(data)
+
+        # copy query list before inserting a new list into it
+        std_query_mod = copy.deepcopy(std_query)
+        std_query_mod[2].insert(len(std_query_mod[2]), standard_vocab)
+
+        # run query
+        std_results = data_class.regular_query(std_query_mod, 'sandbox-tc', url, database)
+
+        # make sure the query returned valid results
+        if len(std_results) != 0 or len(set(list(std_results['CHCO_count']) + list(std_results['MIMICIII_count']))) > 1:
+
+            # order columns
+            std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
+                                       'standard_code', 'standard_name', 'standard_vocabulary', 'CHCO_count',
+                                       'MIMICIII_count']]
+
+            # order rows
+            std_results = std_results.sort_values(by=['source_string', 'source_code', 'source_vocabulary',
+                                                      'standard_code', 'standard_vocabulary'], ascending=True)
+
+            # write out results
+            tab_name = '{0}_{1}'.format('_'.join(spreadsheet_name.split('_')[2:]), std_query[0])
+            write_data(spreadsheet_name, tab_name, std_results)
+
+    return None
+
+
+def write_data(spreadsheet_name, tab_name, results):
+    """Writes a pandas dataframe to a specific tab in a GoogleSheet.
+
+    Args:
+        spreadsheet_name: A string containing the name of a GoogleSheet spreadsheet.
+        tab_name:A string containing the name of a tab within a GoogleSheet spreadsheet.
+        results: A pandas dataframe.
+
+    Returns:
+        None.
+
+    """
+
+    temp_data = GSProcessor([spreadsheet_name, tab_name])
+    temp_data.create_worksheet(tab_name)
+    temp_data.set_worksheet(tab_name)
+    temp_data.sheet_writer(temp_data, results)
+
+    return None
+
+
+def src_queries(data_class, src_type, data, url, database, queries, standard_vocab, phenotype):
+    """Runs a list of queries against a Google BigQuery database designed to map a set of source strings or codes to
+    OMOP concept_codes. The results are returned as a pandas dataframe. These results are then passed to a second
+    function which maps the OMOP source concept_codes to concept_ids in a standard OMOP vocabulary. Finally,
+    the results are written to a Google sheet via the GoogleDrive API.
+
+    Args:
+        data_class: A GoogleSheets class instance.
+        src_type: A string containing the name of the initial query.
+        data: A pandas dataframe.
+        url: A dictionary where keys are query names and values are url strings.
+        database: A string that points to a Google BigQuery database.
+        queries: A list of query lists. The function assumes that this list contains three lists: 1) wildcard match,
+        exact match, and standard.
+        standard_vocab: A string that contains the name of a OMOP standard vocabulary to map source codes to.
+        phenotype: A string that contains the name of the phenotype.
+
+    Returns:
+        None.
+    """
+    # define queries and arguments
+    if 'wild' in src_type:
+        src_queries_ = queries[0]
+    else:
+        src_queries_ = queries[1]
+
+    # run query
+    for query in src_queries_:
+        print('\n', '=' * 25, 'Running Source Query: {0}'.format(query[0]), '=' * 25, '\n')
+
+        # set data
+        data_class.set_data(data)
+
+        src_results = data_class.regular_query(query, 'sandbox-tc', url, database)
+
+        # make sure the query returned valid results
+        if len(src_results) != 0:
+            # create spreadsheet and write out results
+            sheet_name = '{0}_{1}_{2}'.format(phenotype.split('_')[0].upper(), standard_vocab[0].upper(), query[0])
+            data_class.create_spreadsheet(sheet_name, 'callahantiff@gmail.com')
+
+            # run standard queries and write results
+            standard_queries(data_class, data, queries[-1], url, database, standard_vocab, sheet_name)
+
+    return None
 
 
 def main():
 
     ########################
-    # list databses
+    # list databases
     databases = ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']
 
     # load queries
     url = {x.split(';')[0]: x.split(';')[1] for x in open('resources/github_gists.txt', 'r').read().split('\n')}
 
-    # create list to store information on source queries
-    src_inputs = ['str', 'source_id', 'source_domain', None, None]
-    source_queries = [['wildcard_match', '%', src_inputs],
-                      ['cswm', '%', src_inputs],
-                      ['cswm_child', '%', src_inputs],
-                      ['cswm_desc', '%', src_inputs],
-                      ['exact_match', '', src_inputs],
-                      ['csem', '', src_inputs],
-                      ['csem_child', '', src_inputs],
-                      ['csem_desc', '', src_inputs]]
+    # QUERY ARGUMENTS
+    # initial queries
+    initial_queries = [['wildcard_match', '%', ['str', 'source_id', 'source_domain']],
+                       ['exact_match', '', ['str', 'source_id', 'source_domain']]]
 
-    # create list to store information on standard queries
+    # source queries which are run on the results from initial queries
+    src_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', None]
+    wild = [['wildcard_match_child', '', src_inputs], ['wildcard_match_desc', '', src_inputs],
+            ['cswm', '', src_inputs], ['cswm_child', '', src_inputs], ['cswm_desc', '', src_inputs]]
+
+    exact = [['exact_match_child', '', src_inputs], ['exact_match_desc', '', src_inputs],
+             ['csem', '', src_inputs], ['csem_child', '', src_inputs], ['csem_desc', '', src_inputs]]
+
+    # standard queries which are run on the results from source_queries
     std_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', 'code_count', databases]
-    standard_queries = [['stand_terms', '', std_inputs],
-                        ['stand_terms_child', '', std_inputs],
-                        ['stand_terms_desc', '', std_inputs]]
+    standard = [['stand_terms', '', std_inputs], ['stand_terms_child', '', std_inputs],
+                ['stand_terms_desc', '',  std_inputs]]
 
-    # list sheets to process
+    # PHENOTYPES
     sheets = ['ADHD_179', 'Appendicitis_236', 'Crohns Disease_77', 'Hypothyroidism_14', 'Peanut Allergy_609',
               'Steroid-Induced Osteonecrosis_155', 'Systemic Lupus Erythematosus_1058']
 
-    # loop over data sets
-    for sht in sheets[:2]:
+    for sht in sheets:
         print('\n', '*' * 25, 'Processing Phenotype: {0}'.format(sht), '*' * 25, '\n')
 
         # load data from GoogleSheet
@@ -50,67 +167,40 @@ def main():
         data = all_data.get_data().dropna(how='all', axis=1).dropna()
         data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
 
-        # group data for processing
+        # group data types for processing
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
-        for x in [x for x in data_groups.groups if 'String' in x[1]]:
-            print(x)
-            grp_data = data_groups.get_group(x)
+        # loop over the data domains (e.g. drug, condition, measurement)
+        for domain in [x for x in data_groups.groups if 'String' in x[1]]:
+            grp_data = data_groups.get_group(domain)
 
-            print('\n', '_' * 10, 'Running Source Query: {0}'.format(x[2]), '_' * 10, '\n')
+            # run queries
+            for query in initial_queries:
+                print('\n', '=' * 25, 'Running Query: {0} on {1} domain'.format(query[0], domain[0]), '=' * 25, '\n')
 
-            for src_query in source_queries:
-                print('\n', '=' * 25, 'Running Source Query: {0}'.format(src_query[0]), '=' * 25, '\n')
-
-                # run standard query
+                # reset instance data
                 all_data.set_data(grp_data)
-                source_results = all_data.regular_query(src_query, 'sandbox-tc', url, databases[0])
 
-                if len(source_results) != 0:
+                # run query
+                source_results = all_data.regular_query(query, 'sandbox-tc', url, databases[0])
 
-                    # write out source data to Google sheet
-                    spreadsheet_name = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), x[0].upper(), src_query[0])
-                    tab_name = '_'.join(spreadsheet_name.split('_')[2:])
+                # order columns and rows
+                source_res_cpy = source_results.copy()
+                source_res_cpy = source_res_cpy[['source_string', 'source_code', 'source_name', 'source_vocabulary']]
+                source_res_cpy = source_res_cpy.sort_values(by=['source_string', 'source_code', 'source_vocabulary'],
+                                                            ascending=True)
 
-                    # order columns
-                    src_results = source_results.copy()
-                    src_results = src_results[['source_string', 'source_code', 'source_name', 'source_vocabulary']]
+                # create spreadsheet and write out results
+                sheet_name = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0])
+                all_data.create_spreadsheet(sheet_name, 'callahantiff@gmail.com')
+                write_data(sheet_name, '_'.join(sheet_name.split('_')[2:]), source_res_cpy)
 
-                    # create new spreadsheet class
-                    all_data.create_spreadsheet(spreadsheet_name, 'callahantiff@gmail.com')
-                    temp_data = GSProcessor([spreadsheet_name, tab_name])
-                    temp_data.create_worksheet(tab_name)
-                    temp_data.set_worksheet(tab_name)
-                    temp_data.sheet_writer(temp_data, src_results)
+                # get standard terms for initial query
+                standard_queries(all_data, source_results, standard, url, databases[0], domain[2], sheet_name)
 
-                    # pause to avoid over whelming the API
-                    time.sleep(10)
-
-                    # process second half of queries -- getting standard codes
-                    for std_query in standard_queries:
-                        print('\n', '=' * 25, 'Running Standard Query: {0}'.format(std_query[0]), '=' * 25, '\n')
-
-                        # copy query list before inserting a new list into it
-                        std_query_mod = copy.deepcopy(std_query)
-                        std_query_mod[2].insert(len(std_query_mod[2]), x[2])
-
-                        # run query
-                        all_data.set_data(source_results)
-                        std_results = all_data.regular_query(std_query_mod, 'sandbox-tc', url, databases[0])
-
-                        if len(std_results) != 0:
-
-                            # order columns
-                            stand_results = std_results[['source_string', 'source_code', 'source_name',
-                                                         'source_vocabulary', 'standard_code', 'standard_name',
-                                                         'standard_vocabulary', 'CHCO_count', 'MIMICIII_count']]
-
-                            # make sure connection is still live before writing out data
-                            new_tab = '{0}_{1}'.format(tab_name, std_query[0])
-                            temp_data = GSProcessor([spreadsheet_name, tab_name])
-                            temp_data.create_worksheet(new_tab)
-                            temp_data.set_worksheet(new_tab)
-                            temp_data.sheet_writer(temp_data, stand_results)
+                # run wildcard and exact match source and standard code queries
+                queries = [wild, exact, standard]
+                src_queries(all_data, query[0], source_results, url, databases[0], queries, domain[2], sheet_name)
 
     # ########################
     # # GBQ: create a new table -- after verifying mappings
