@@ -9,10 +9,10 @@ import datetime
 import oauth2client.service_account
 import pandas_gbq
 import requests
-# import pandas as pd
 
 from datetime import datetime
 from google.oauth2 import service_account
+from pandas_gbq import exceptions
 
 
 class GBQ(object):
@@ -36,6 +36,13 @@ class GBQ(object):
         self.auth2 = service_account.Credentials.from_service_account_file(self.key)
         self.project = project
         self.database = database
+
+    def get_authorization(self):
+        self.auth = oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_name(self.key, self.api)
+        self.gbq_service = apiclient.discovery.build('bigquery', 'v2', credentials=self.auth)
+        self.auth2 = service_account.Credentials.from_service_account_file(self.key)
+
+        return None
 
     def table_info(self):
         """Returns the name of all of the tables in a database.
@@ -85,7 +92,13 @@ class GBQ(object):
         print('Started processing query: {}'.format(start))
         query = requests.get(url, allow_redirects=True).text.format(*str_args)
 
-        results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project, credentials=self.auth2)
+        try:
+            results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project, credentials=self.auth2)
+
+        except pandas_gbq.exceptions.AccessDenied:
+            self.get_authorization()
+
+            results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project, credentials=self.auth2)
 
         finish = datetime.now()
         print("Finished processing query: {}".format(finish))

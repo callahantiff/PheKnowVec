@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import time
 
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -22,67 +23,124 @@ class GSProcessor(object):
     Attributes:
         auth: A string containing a file path to the json file containing Google API information.
         cred: A Service Account Credential object.
-        sheet_info: A list where the first item is a string that contains the name of a Google Sheet and the second
+        spreadsheet info: A list where the first item is a string that contains the name of a Google Sheet and the second
         item is a string that contains the name of a tab in the `worksheet`.
-        sheet: A authorized gspread object.
+        spreadsheet: A authorized gspread object.
         worksheet: An empty string to store a specific worksheet in  a Google Sheet.
-        data: An empty string to store Google Sheet data.
+        data: An empty string to store GoogleSheet data.
+        sheet_dic: An empty dictionary that stores GoogleSheet metadata.
     """
 
-    def __init__(self, sheet_info):
+    def __init__(self, spreadsheet_info):
         self.auth = 'resources/programming/Google_API/secret_client_gs.json'
-        self.scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        self.scope = ['https://spreadsheets.google.com/feeds',
+                      'https://www.googleapis.com/auth/drive',
+                      'https://www.googleapis.com/auth/drive.file',
+                      'https://www.googleapis.com/auth/spreadsheets']
         self.cred = ServiceAccountCredentials.from_json_keyfile_name(self.auth, self.scope)
-        self.sheet_info = sheet_info
-        self.sheet = gspread.authorize(self.cred).open(self.sheet_info[0])
+        self.client = gspread.authorize(self.cred)
+        self.email_address = 'callahantiff@gmail.com'
+        self.spreadsheet_info = spreadsheet_info
+        self.spreadsheet = self.client.open(self.spreadsheet_info[0])
         self.worksheet = ''
         self.data = pd.DataFrame()
+        self.sheet_dic = dict()
 
     def data_download(self):
-        """Connects to Google Sheets, downloads a spreadsheet and saves it to a pandas data frame."""
+        """Connects to Google Sheets, downloads a spreadsheet, and converts the downloaded results to a pandas data
+        frame."""
 
-        temp_data = gd.get_as_dataframe(self.sheet.worksheet(self.sheet_info[1]))
+        temp_data = gd.get_as_dataframe(self.spreadsheet.worksheet(self.spreadsheet_info[1]))
 
         if len(temp_data) == 0:
-            raise ValueError('Error - {0} does not contain any data!'.format(str(self.sheet_info[0]) +
-                                                                             "_" + str(self.sheet_info[1])))
+            raise ValueError('Error - {0} does not contain any data!'.format(str(self.spreadsheet_info[0]) +
+                                                                             "_" + str(self.spreadsheet_info[1])))
         else:
             self.data = temp_data
-            print('Downloading data from Google Sheet: {0}, Tab: {1}\n'.format(self.sheet_info[0], self.sheet_info[1]))
+            print('Downloading data from Google Sheet: {0}, Tab: {1}\n'.format(self.spreadsheet_info[0],
+                                                                               self.spreadsheet_info[1]))
+
+    def authorize_client(self):
+
+        self.auth = 'resources/programming/Google_API/secret_client_gs.json'
+        self.scope = ['https://spreadsheets.google.com/feeds',
+                      'https://www.googleapis.com/auth/drive',
+                      'https://www.googleapis.com/auth/drive.file',
+                      'https://www.googleapis.com/auth/spreadsheets']
+        self.cred = ServiceAccountCredentials.from_json_keyfile_name(self.auth, self.scope)
+        self.client = gspread.authorize(self.cred)
+
+        return self.client
 
     def get_data(self):
         return self.data
 
-    def get_sheet(self):
-        return self.sheet
+    def get_spreadsheet(self):
+        return self.spreadsheet
 
     def get_worksheet(self):
         return self.worksheet
 
-    def create_worksheet(self, sheet_name):
+    def set_spreadsheet(self, spreadsheet_id):
+        self.spreadsheet = self.client.open_by_key(spreadsheet_id)
+
+    def set_worksheet(self, worksheet_name):
         """Takes a string as an argument and changes active tab in google sheets.
 
         Args:
-            sheet_name: A string containing the name of a tab in the current Google Sheet.
+            worksheet_name: A string containing the name of a tab in the current Google Sheet.
+
+        Returns:
+             None.
+        """
+        self.worksheet = self.spreadsheet.worksheet(worksheet_name)
+        print('Updated, switched to Google Sheet: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
+
+    def create_worksheet(self, spreadsheet_name):
+        """Takes a string as an argument and changes active tab in google sheets.
+
+        Args:
+            spreadsheet_name: A string containing the name of a tab in the current GoogleSheet.
 
         Returns:
              None.
         """
 
-        self.get_sheet().add_worksheet(title=sheet_name, rows=1, cols=1)
+        self.get_spreadsheet().add_worksheet(title=spreadsheet_name, rows=1, cols=1)
 
-    def list_spreadsheet_tabs(self, sheet_name):
-        """
+    def count_spreadsheet_cells(self, spreadsheet_name):
+        """counts the number of cells in a worksheet.
 
         Args:
-            sheet_name: A string containing the name of a GoogleSheet.
+            spreadsheet_name: A string containing the name of a tab in the current GoogleSheet.
+
+        Returns:
+            cell_count: An integer that indicates the total number of cells in a spreadsheet.
+        """
+
+        cell_count = 0
+
+        spreadsheet = self.client.open(spreadsheet_name)
+        tabs = [str(x).split("'")[1] for x in list(spreadsheet.worksheets())]
+
+        for tab in tabs:
+            wks = spreadsheet.worksheet(tab)
+            cell_count += wks.row_count*wks.col_count
+
+        return cell_count
+
+    def list_spreadsheet_tabs(self, spreadsheet_name):
+        """Takes the name of GoogleSheet and returns all named tabs within that spreadsheet.
+
+        Args:
+            spreadsheet_name: A string containing the name of a GoogleSheet.
 
         Returns:
              A list of tabs in a spreadsheet.
         """
 
-        sh = gspread.authorize(self.cred).open(sheet_name)
-        tabs = [str(x).split("'")[1] for x in list(sh.worksheets())]
+        spreadsheet = self.client.open(spreadsheet_name)
+        tabs = [str(x).split("'")[1] for x in list(spreadsheet.worksheets())]
 
         return tabs
 
@@ -97,35 +155,68 @@ class GSProcessor(object):
         Returns:
             None.
         """
-        sh = gspread.authorize(self.cred).create(spreadsheet_name)
+        sh = self.client.create(spreadsheet_name)
         sh.share(email_address, perm_type='user', role='writer')
 
-    def set_worksheet(self, sheet_name):
-        """Takes a string as an argument and changes active tab in google sheets.
+    def write_data(self, spreadsheet_name, tab_name, results):
+        """Writes a pandas dataframe to a specific tab in a GoogleSheet. Data is only written if the tab does not
+        already
+        exists in the spreadsheet.
 
         Args:
-            sheet_name: A string containing the name of a tab in the current Google Sheet.
-
-        Returns:
-             None.
-        """
-        self.worksheet = self.sheet.worksheet(sheet_name)
-        print('Updated, switched to Google Sheet: {0}, Tab: {1}\n'.format(self.sheet_info[0], sheet_name))
-
-    @staticmethod
-    def sheet_writer(spreadsheet, results):
-        """Takes an instantiated class and a pandas dataframe and writes the data to the location specified by the
-        class.
-
-        Args:
-            spreadsheet: A string that contains an instance of the class.
+            spreadsheet_name: A string containing the name of a GoogleSheet spreadsheet.
+            tab_name:A string containing the name of a tab within a GoogleSheet spreadsheet.
             results: A pandas dataframe.
 
         Returns:
-             None.
+            None.
+
         """
 
-        gd.set_with_dataframe(spreadsheet.get_worksheet(), results)
+        # write results
+        spreadsheets = {sheet.title: sheet.id for sheet in self.client.openall()}
+        if spreadsheet_name in spreadsheets.keys():
+            sheet_id = spreadsheets[spreadsheet_name]
+
+            # re-instantiate object
+            self.authorize_client()
+
+            # open spreadsheet and write data
+            self.client.open_by_key(sheet_id)
+
+            # search tabs in sheet, if not there write data
+            if tab_name not in self.list_spreadsheet_tabs(spreadsheet_name):
+
+                # set spreadsheet
+                self.set_spreadsheet(sheet_id)
+                time.sleep(5)
+
+                # create worksheet
+                self.create_worksheet(tab_name)
+                self.set_worksheet(tab_name)
+                time.sleep(5)
+
+                # write data
+                gd.set_with_dataframe(self.worksheet, results)
+
+        else:
+            # re-instantiate object
+            self.authorize_client()
+
+            # create spreadsheet
+            self.create_spreadsheet(spreadsheet_name, self.email_address)
+            self.set_spreadsheet({sheet.title: sheet.id for sheet in self.client.openall()}[spreadsheet_name])
+            time.sleep(5)
+
+            # create worksheet
+            self.create_worksheet(tab_name)
+            self.set_worksheet(tab_name)
+            time.sleep(5)
+
+            # write data
+            gd.set_with_dataframe(self.get_worksheet(), results)
+
+        return None
 
     def set_data(self, new_data):
         """Takes a pandas data frame as an argument and uses it to update the instance's data.
@@ -199,6 +290,7 @@ class GSProcessor(object):
 
                 sql_args = self.code_format(group, ['code'], '', url.split('/')[-1])
                 res = db.gbq_query(url, (db_, *sql_args))
+                time.sleep(5)
                 query_results.append(res.drop_duplicates())
 
             merged = pd.concat(query_results).drop_duplicates()
@@ -246,6 +338,7 @@ class GSProcessor(object):
             print('\n Processing chunk {0} of {1}'.format(name + 1, batch.ngroups))
             sql_args = self.code_format(group, input_source[2], input_source[1])
             res = gbq_db.gbq_query(url[input_source[0]], (gbq_database, *sql_args))
+            time.sleep(5)
             query_results.append(res.drop_duplicates())
 
         # get occurrence counts
@@ -258,25 +351,26 @@ class GSProcessor(object):
             merged_results = pd.merge(left=self.data[['source_code', 'source_string']].drop_duplicates(),
                                       right=cont_results, how='right', on='source_code').drop_duplicates()
 
-        # re-set data
-        self.set_data(merged_results)
-
-        if 'code_count' not in input_source[2] or len(self.data) == 0:
+        if 'code_count' not in input_source[2] or len(merged_results) == 0:
             # we don't want occurrence counts for source string queries or when no query results are returned
-            print('There are {0} unique rows in the results dataframe'.format(len(self.data)))
-            return self.data
+            print('There are {0} unique rows in the results dataframe'.format(len(merged_results)))
+            return merged_results
 
         else:
+            # reset data to results before getting counts
+            self.set_data(merged_results)
+
+            # get occurrence counts
             return self.domain_occurrence(project, url[input_source[2][4]], input_source[2][5])
 
     @staticmethod
-    def code_format(data, input_source, mod='', data_type=None):
+    def code_format(data, input_list, mod='', data_type=None):
         """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
         list of sets.
 
         Args:
             data: A pandas data frame.
-            input_source: A list of strings that represent columns in a pandas dataframe. The function assumes that
+            input_list: A list of strings that represent columns in a pandas dataframe. The function assumes that
                 the list contains the following:
                     (1) a string that indicates if the query uses input strings or codes
                     (2) a string that indicates the name of the column that holds the source codes or strings
@@ -304,14 +398,14 @@ class GSProcessor(object):
         # get data
         tables = ['drug_exposure', 'condition_occurrence', 'procedure_occurrence', 'observation', 'measurement']
 
-        if 'code' not in input_source[0]:
+        if 'code' not in input_list[0]:
             if mod == '':
                 format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
             else:
                 format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(x.strip('"').lower())
 
-            source1 = set(list(data[input_source[1]].apply(format_mod)))
-            source2 = set(list(data[input_source[2]]))
+            source1 = set(list(data[input_list[1]].apply(format_mod)))
+            source2 = set(list(data[input_list[2]]))
             res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
 
         else:
@@ -325,18 +419,18 @@ class GSProcessor(object):
                       + source3 + '"', table_name, table_name.split('_')[0]
 
             else:
-                source1 = set(list(data[input_source[1]]))
-                source2 = set(list(data[input_source[2]]))
-                source3 = set(list(data[input_source[3]])).pop()
+                source1 = set(list(data[input_list[1]]))
+                source2 = set(list(data[input_list[2]]))
+                source3 = set(list(data[input_list[3]])).pop()
 
                 # to get source concept_codes
-                if len(input_source) < 6:
+                if len(input_list) < 6:
                     res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"' \
                           + source3 + '"'
 
                 # to get standard terms
                 else:
-                    source4 = input_source[6]
+                    source4 = input_list[6]
                     res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
                           + source3 + '"', '"' + source4 + '"'
 
