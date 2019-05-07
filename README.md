@@ -11,7 +11,7 @@ This repository contains more than just code, it provides a detailed and transpa
 
 <img src="https://img.shields.io/badge/ReproducibleResearch-AbraCollaboratory-magenta.svg?style=flat-square" alt="git-AbraCollaboratory">
 
-### Project Stats
+### Project Statistics
 
 ![GitHub contributors](https://img.shields.io/github/contributors/callahantiff/PheKnowVec.svg?color=yellow&style=flat-square) ![Github all releases](https://img.shields.io/github/downloads/callahantiff/PheKnowVec/total.svg?color=dodgerblue&style=flat-square)
 
