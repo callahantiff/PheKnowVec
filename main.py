@@ -37,7 +37,7 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
         # copy query list before inserting a new list into it
         std_query_mod = copy.deepcopy(std_query)
-        std_query_mod[2].insert(len(std_query_mod[2]), standard_vocab[2])
+        std_query_mod[2].insert(len(std_query_mod[2]), list(standard_vocab)[2:])
 
         # run query
         std_results = data_class.regular_query(std_query_mod, 'sandbox-tc', url, database)
@@ -107,6 +107,11 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
             # check data dimensions to ensure we can write data
             data_set_size = len(source_res_cpy) * len(list(source_res_cpy))
 
+            # sleep system and re-authorize API client
+            time.sleep(10)
+            data_class.authorize_client()
+
+            # try running  code again
             if spreadsheet in {sheet.title: sheet.id for sheet in data_class.client.openall()}.keys():
 
                 if data_class.count_spreadsheet_cells(spreadsheet) + data_set_size < 5000000:
@@ -170,7 +175,7 @@ def main():
     sheets = ['ADHD_179', 'Appendicitis_236', 'Crohns Disease_77', 'Hypothyroidism_14', 'Peanut Allergy_609',
               'Steroid-Induced Osteonecrosis_155', 'Systemic Lupus Erythematosus_1058']
 
-    for sht in sheets:
+    for sht in sheets[1:2]:
 
         print('\n', '*' * 25, 'Processing Phenotype: {0}'.format(sht), '*' * 25, '\n')
 
@@ -186,14 +191,13 @@ def main():
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         # loop over the data domains (e.g. drug, condition, measurement)
-        for domain in [x for x in data_groups.groups if 'String' in x[1]]:
+        for domain in [x for x in data_groups.groups if 'String' in x[1]][1:]:
             grp_data = data_groups.get_group(domain)
 
             # run queries
             print('\n', '=' * 25, 'Running Queries: {0} domain'.format(domain[0]), '=' * 25, '\n')
 
-            for query in queries[0][3:4]:
-                print(query)
+            for query in queries[0]:
 
                 # create spreadsheet name
                 spreadsheet = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])

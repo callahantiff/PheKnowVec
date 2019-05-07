@@ -173,6 +173,15 @@ class GSProcessor(object):
 
         """
 
+        try:
+            # write results
+            spreadsheets = {sheet.title: sheet.id for sheet in self.client.openall()}
+
+        except gspread.exceptions.APIError:
+
+            # re-instantiate object
+            self.authorize_client()
+
         # write results
         spreadsheets = {sheet.title: sheet.id for sheet in self.client.openall()}
         if spreadsheet_name in spreadsheets.keys():
@@ -430,9 +439,9 @@ class GSProcessor(object):
 
                 # to get standard terms
                 else:
-                    source4 = input_list[6]
+                    source4 = map(str.strip, input_list[6][0].split(','))
                     res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
-                          + source3 + '"', '"' + source4 + '"'
+                          + source3 + '"', '"' + '","'.join(map(str, source4)) + '"'
 
         if not len(source1) and len(source2) >= 1:
             raise ValueError('Error - check your input data, important variables may be missing')
