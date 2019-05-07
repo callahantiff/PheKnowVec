@@ -106,17 +106,25 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
 
             # check data dimensions to ensure we can write data
             data_set_size = len(source_res_cpy) * len(list(source_res_cpy))
-            if data_class.count_spreadsheet_cells(spreadsheet) + data_set_size < 5000000:
 
-                # write out results
-                tab_name = '{0}'.format(query[0])
-                data_class.write_data(spreadsheet, tab_name, source_res_cpy)
+            if spreadsheet in {sheet.title: sheet.id for sheet in data_class.client.openall()}.keys():
+
+                if data_class.count_spreadsheet_cells(spreadsheet) + data_set_size < 5000000:
+
+                    # write out results
+                    tab_name = '{0}'.format(query[0])
+                    data_class.write_data(spreadsheet, tab_name, source_res_cpy)
+
+                else:
+                    # write out results to a new spreadsheet named after the query
+                    new_sheet = '{0}_{1}'.format('_'.join(spreadsheet.split('_')[0:2]), query[0])
+                    tab_name = '{0}'.format('_'.join(spreadsheet.split('_')[2:]))
+                    data_class.write_data(new_sheet, tab_name, source_res_cpy)
 
             else:
-                # write out results to a new spreadsheet named after the query
-                new_sheet = '{0}_{1}'.format('_'.join(spreadsheet.split('_')[0:2]), query[0])
-                tab_name = '{0}'.format('_'.join(spreadsheet.split('_')[2:]))
-                data_class.write_data(new_sheet, tab_name, source_res_cpy)
+                # when spreadsheet does not yet exist -- write out results
+                tab_name = '{0}'.format(query[0])
+                data_class.write_data(spreadsheet, tab_name, source_res_cpy)
 
             # run standard queries and write results
             src_spreadsheet = [spreadsheet, tab_name]
@@ -146,7 +154,8 @@ def main():
             [['cswm', '%', src_inputs], ['cswm_child', '%', src_inputs], ['cswm_desc', '%', src_inputs]]]
 
     exact = [[['exact_match', ' ', src_inputs], ['exact_match_child', ' ', src_inputs],
-             ['exact_match_desc', ' ', src_inputs], ['csem', ' ', src_inputs], ['csem_child', ' ', src_inputs],
+             ['exact_match_desc', ' ', src_inputs]],
+             [['csem', ' ', src_inputs], ['csem_child', ' ', src_inputs],
              ['csem_desc', ' ', src_inputs]]]
 
     # queries that map source_codes to standard_codes
@@ -183,7 +192,7 @@ def main():
             # run queries
             print('\n', '=' * 25, 'Running Queries: {0} domain'.format(domain[0]), '=' * 25, '\n')
 
-            for query in queries[0][1:2]:
+            for query in queries[0][3:4]:
                 print(query)
 
                 # create spreadsheet name
