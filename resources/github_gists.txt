@@ -2,13 +2,13 @@ source_string_syn;https://gist.github.com/callahantiff/63eb95d2fbc0af33335586925
 source_string;https://gist.github.com/callahantiff/2e9558064f62c29cbad5a75b684ae175/raw
 source_code;https://gist.github.com/callahantiff/1c2a36c2b62c4a38bc0be762413a0417/raw
 source_code_desc;https://gist.github.com/callahantiff/f6fc3a798ac102893d40e2313dc9226f/raw
-wildcard_match;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/wildcard.sql
+wildcard_match;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/source_string_match.sql
 wildcard_match_child;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/source_code_child.sql
 wildcard_match_desc;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/source_code_desc.sql
 cswm;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/concept_synonym.sql
 cswm_child;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/concept_synonym_child.sql
 cswm_desc;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/concept_synonym_desc.sql
-exact_match;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/exact_match.sql
+exact_match;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/source_string_match.sql
 exact_match_child;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/source_code_child.sql
 exact_match_desc;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/source_code_desc.sql
 csem;https://gist.github.com/callahantiff/523cb25f5e5c72a3361f4498a4fabb9b/raw/concept_synonym.sql
