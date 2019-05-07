@@ -399,7 +399,7 @@ class GSProcessor(object):
         tables = ['drug_exposure', 'condition_occurrence', 'procedure_occurrence', 'observation', 'measurement']
 
         if 'code' not in input_list[0]:
-            if mod == '':
+            if '%' not in mod:
                 format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
             else:
                 format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(x.strip('"').lower())
