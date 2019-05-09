@@ -4,13 +4,16 @@
 #########################
 
 
+import collections
 import gspread
+import requests
+import time
+
 import gspread_dataframe as gd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import time
 
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -173,43 +176,41 @@ class GSProcessor(object):
 
         """
 
-        try:
-            # write results
-            spreadsheets = {sheet.title: sheet.id for sheet in self.client.openall()}
-
-        except gspread.exceptions.APIError:
-
-            # re-instantiate object
-            self.authorize_client()
+        # re-authorize client
+        self.authorize_client()
 
         # write results
         spreadsheets = {sheet.title: sheet.id for sheet in self.client.openall()}
+
         if spreadsheet_name in spreadsheets.keys():
             sheet_id = spreadsheets[spreadsheet_name]
 
-            # re-instantiate object
+            # re-authorize client
             self.authorize_client()
 
-            # open spreadsheet and write data
-            self.client.open_by_key(sheet_id)
+            # open spreadsheet
+            # self.client.open_by_key(sheet_id)
 
-            # search tabs in sheet, if not there write data
-            if tab_name not in self.list_spreadsheet_tabs(spreadsheet_name):
+            # # search tabs in sheet, if not there write data (ADD BACK LATER)
+            # if tab_name not in self.list_spreadsheet_tabs(spreadsheet_name):
 
-                # set spreadsheet
-                self.set_spreadsheet(sheet_id)
-                time.sleep(5)
+            # re-authorize client and set spreadsheet
+            self.authorize_client()
+            self.set_spreadsheet(sheet_id)
+            time.sleep(5)
 
-                # create worksheet
-                self.create_worksheet(tab_name)
-                self.set_worksheet(tab_name)
-                time.sleep(5)
+            # create worksheet
+            # self.create_worksheet(tab_name)
+            self.set_worksheet(tab_name)
+            time.sleep(5)
 
-                # write data
-                gd.set_with_dataframe(self.worksheet, results)
+            # re-authorize client and write data
+            self.authorize_client()
+            # gd.set_with_dataframe(self.worksheet, results)
+            gd.set_with_dataframe(self.get_worksheet(), results)
 
         else:
-            # re-instantiate object
+            # re-authorize client
             self.authorize_client()
 
             # create spreadsheet
@@ -222,7 +223,8 @@ class GSProcessor(object):
             self.set_worksheet(tab_name)
             time.sleep(5)
 
-            # write data
+            # re-authorize client and write data
+            self.authorize_client()
             gd.set_with_dataframe(self.get_worksheet(), results)
 
         return None
@@ -297,8 +299,8 @@ class GSProcessor(object):
             for name, group in batch:
                 print('\n Processing chunk {0} of {1}'.format(name + 1, batch.ngroups))
 
-                sql_args = self.code_format(group, ['code'], '', url.split('/')[-1])
-                res = db.gbq_query(url, (db_, *sql_args))
+                sql_query = self.code_format(url, group, db_, ['code'], '', url.split('/')[-1])
+                res = db.gbq_query(sql_query)
                 time.sleep(5)
                 query_results.append(res.drop_duplicates())
 
@@ -343,10 +345,10 @@ class GSProcessor(object):
         query_results = []
         batch = self.data.groupby(np.arange(len(self.data)) // 15000)
 
-        for name, group in batch:
-            print('\n Processing chunk {0} of {1}'.format(name + 1, batch.ngroups))
-            sql_args = self.code_format(group, input_source[2], input_source[1])
-            res = gbq_db.gbq_query(url[input_source[0]], (gbq_database, *sql_args))
+        for chunk, group in batch:
+            print('\n Processing chunks: {0}/{1}'.format(chunk + 1, batch.ngroups))
+            sql_query = self.code_format(url[input_source[0]], group, gbq_database, input_source[2], input_source[1])
+            res = gbq_db.gbq_query(sql_query)
             time.sleep(5)
             query_results.append(res.drop_duplicates())
 
@@ -373,12 +375,38 @@ class GSProcessor(object):
             return self.domain_occurrence(project, url[input_source[2][4]], input_source[2][5])
 
     @staticmethod
-    def code_format(data, input_list, mod='', data_type=None):
+    def named_tuple(arg_dict, url):
+        """Modifies the functionality of a namedtuple by allowing the arguments to be generated dynamically.
+        Specifically, the method builds a namedtuple using information in an input dictionary. This namedtuple is
+        then expanded using the splat operator and fed into the str.format method.
+
+        Args:
+            arg_dict: A dictionary containing the input arguments for a namedtuple.
+            url: A string that contains a URL.
+
+        Return:
+            A formatted SQL query string.
+
+        """
+
+        sql_args = collections.namedtuple('sql_args', list(arg_dict.keys()))
+        sql_args_tuple = sql_args(**arg_dict)
+        named_tup_dict = collections.OrderedDict(zip(arg_dict.keys(), sql_args_tuple))
+
+        # format query text
+        query = requests.get(url, allow_redirects=True).text.format(**named_tup_dict)
+
+        return query
+
+    @staticmethod
+    def code_format(url, data, database, input_list, mod='', data_type=None):
         """Extract information needed to in an SQL query from a pandas data frame and return needed information as a
         list of sets.
 
         Args:
+            url: A string containing a url which redirects to a GitHubGist that contains a SQL query.
             data: A pandas data frame.
+            database: A string containing the name of a database.
             input_list: A list of strings that represent columns in a pandas dataframe. The function assumes that
                 the list contains the following:
                     (1) a string that indicates if the query uses input strings or codes
@@ -407,15 +435,52 @@ class GSProcessor(object):
         # get data
         tables = ['drug_exposure', 'condition_occurrence', 'procedure_occurrence', 'observation', 'measurement']
 
-        if 'code' not in input_list[0]:
-            if '%' not in mod:
-                format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '{0}' THEN '{0}'".format(x.strip('"').lower())
-            else:
-                format_mod = lambda x: "WHEN lower(c.concept_name) LIKE '%{0}%' THEN '{0}'".format(x.strip('"').lower())
+        # set strings
+        ext_syn_str = "WHEN lower(cs.concept_synonym_name) LIKE '{concept_synonym}' THEN '{concept_synonym}'"
+        ext_con_str = "WHEN lower(c.concept_name) LIKE '{concept_name}' THEN '{concept_name}'"
+        wc_syn_str = "WHEN lower(cs.concept_synonym_name) LIKE '%{concept_synonym}%' THEN '{concept_synonym}'"
+        wc_con_str = "WHEN lower(c.concept_name) LIKE '%{concept_name}%' THEN '{concept_name}'"
 
-            source1 = set(list(data[input_list[1]].apply(format_mod)))
-            source2 = set(list(data[input_list[2]]))
-            res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+        # process string inputs
+        if 'code' not in input_list[0]:
+            if 'syn' in input_list[0]:
+                if '%' in mod:
+                    frm1 = lambda x: wc_con_str.format(concept_name=x.strip('"').lower())
+                    frm2 = lambda x: wc_syn_str.format(concept_synonym=x.strip('"').lower())
+                    source1 = [set(list(data[input_list[1]].apply(frm1))), set(list(data[input_list[1]].apply(frm2)))]
+                    source2 = set(list(data[input_list[2]]))
+                    res = '\n'.join(map(str, source1[0])), '\n'.join(map(str, source1[1])), '"' + \
+                          '","'.join(map(str, source2)) + '"'
+
+                else:
+                    frm1 = lambda x: ext_con_str.format(concept_name=x.strip('"').lower())
+                    frm2 = lambda x: ext_syn_str.format(concept_synonym=x.strip('"').lower())
+                    source1 = [set(list(data[input_list[1]].apply(frm1))), set(list(data[input_list[1]].apply(frm2)))]
+                    source2 = set(list(data[input_list[2]]))
+                    res = '\n'.join(map(str, source1[0])), '"' + '\n'.join(map(str, source1[1])), '"' + \
+                          '","'.join(map(str, source2)) + '"'
+
+                # set-up named tuple
+                arg_dict = {'database': (database, *res)[0], 'concept_name': (database, *res)[1],
+                            'concept_synonym': (database, *res)[2], 'domain_id': (database, *res)[3]}
+
+            else:
+                if '%' in mod:
+                    frm1 = lambda x: wc_con_str.format(concept_name=x.strip('"').lower())
+                    source1 = set(list(data[input_list[1]].apply(frm1)))
+                    source2 = set(list(data[input_list[2]]))
+                    res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+                else:
+                    frm = lambda x: ext_con_str.format(concept_name=x.strip('"').lower())
+                    source1 = set(list(data[input_list[1]].apply(frm)))
+                    source2 = set(list(data[input_list[2]]))
+                    res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+                # set-up named tuple
+                arg_dict = {'database': (database, *res)[0],
+                            'concept_name': (database, *res)[1],
+                            'domain_id': (database, *res)[2]}
 
         else:
             # to get occurrence counts
@@ -427,6 +492,11 @@ class GSProcessor(object):
                 res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
                       + source3 + '"', table_name, table_name.split('_')[0]
 
+                # set-up named tuple
+                arg_dict = {'database': (database, *res)[0], 'concept_codes': (database, *res)[1],
+                            'vocabulary_id': (database, *res)[2], 'domain_id': (database, *res)[3],
+                            'count_concept': (database, *res)[4], 'concept': (database, *res)[5]}
+
             else:
                 source1 = set(list(data[input_list[1]]))
                 source2 = set(list(data[input_list[2]]))
@@ -437,16 +507,26 @@ class GSProcessor(object):
                     res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"' \
                           + source3 + '"'
 
+                    # set-up named tuple
+                    arg_dict = {'database': (database, *res)[0], 'concept_codes': (database, *res)[1],
+                                'vocabulary_id': (database, *res)[2], 'domain_id': (database, *res)[3],
+                                'count_concept': (database, *res)[4], 'concept': (database, *res)[5]}
+
                 # to get standard terms
                 else:
                     source4 = map(str.strip, input_list[6][0].split(','))
                     res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
                           + source3 + '"', '"' + '","'.join(map(str, source4)) + '"'
 
+                    # set-up named tuple
+                    arg_dict = {'database': (database, *res)[0], 'concept_codes': (database, *res)[1],
+                                'source_vocabulary_id': (database, *res)[2], 'domain_id': (database, *res)[3],
+                                'standard_vocabulary_id': (database, *res)[4]}
+
         if not len(source1) and len(source2) >= 1:
             raise ValueError('Error - check your input data, important variables may be missing')
         else:
-            return res
+            return GSProcessor.named_tuple(arg_dict, url)
 
     @staticmethod
     def descriptive(data, plot_title, plot_x_axis, plot_y_axis):
