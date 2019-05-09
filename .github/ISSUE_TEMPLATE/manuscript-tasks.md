@@ -2,8 +2,8 @@
 name: Manuscript Tasks
 about: Add a manuscript-related task
 title: 'TODO - Manuscript Task: Short description of task'
-labels: 'TODO: Manuscript Tasks'
-assignees: ''
+labels: manuscript
+assignees: callahantiff
 
 ---
 
