@@ -8,7 +8,6 @@ import apiclient
 import datetime
 import oauth2client.service_account
 import pandas_gbq
-import requests
 
 from datetime import datetime
 from google.oauth2 import service_account
@@ -77,12 +76,11 @@ class GBQ(object):
 
         print('Created new table: {0} in {1}'.format(table_name, self.database))
 
-    def gbq_query(self, url, str_args):
+    def gbq_query(self, query):
         """Queries a GBQ table and returns the output.
 
         Args:
-            url: A string that contains a URL.
-            str_args: A tuple of arguments to pass into an SQL query.
+            query: A formatted string containing a SQL query.
 
         Returns:
             A pandas data frame.
@@ -90,7 +88,6 @@ class GBQ(object):
 
         start = datetime.now()
         print('Started processing query: {}'.format(start))
-        query = requests.get(url, allow_redirects=True).text.format(*str_args)
 
         try:
             results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project, credentials=self.auth2)
