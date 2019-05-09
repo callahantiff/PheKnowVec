@@ -4,6 +4,7 @@
 ####################
 
 import copy
+import pandas as pd
 import time
 
 from scripts.data_processor import GSProcessor
@@ -42,23 +43,26 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         # run query
         std_results = data_class.regular_query(std_query_mod, 'sandbox-tc', url, database)
 
-        # make sure the query returned valid results
-        counts = len(set(list(std_results['CHCO_count']) + list(std_results['MIMICIII_count'])))
+        if len(std_results) != 0:
+            # make sure the query returned valid results
+            counts = len(set(list(std_results['CHCO_count']) + list(std_results['MIMICIII_count'])))
 
-        if len(std_results) != 0 and counts > 1:
+            if counts > 1:
 
-            # order columns
-            std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
-                                       'standard_code', 'standard_name', 'standard_vocabulary', 'CHCO_count',
-                                       'MIMICIII_count']]
+                # order columns
+                std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
+                                           'standard_code', 'standard_name', 'standard_vocabulary', 'CHCO_count',
+                                           'MIMICIII_count']]
 
-            # order rows
-            std_results = std_results.sort_values(by=['source_string', 'source_code', 'source_vocabulary',
-                                                      'standard_code', 'standard_vocabulary'], ascending=True)
+                # order rows
+                std_results = std_results.sort_values(by=['source_string', 'source_code', 'source_vocabulary',
+                                                          'standard_code', 'standard_vocabulary'], ascending=True)
 
-            # write out results
-            tab_name = '{0}_{1}'.format(spreadsheet_name[1], std_query[0])
-            data_class.write_data(spreadsheet_name[0], tab_name, std_results)
+                # write out results
+                tab_name = '{0}_{1}'.format(spreadsheet_name[1], std_query[0])
+
+                data_class.authorize_client()
+                data_class.write_data(spreadsheet_name[0], tab_name, std_results)
 
     return None
 
@@ -84,20 +88,26 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
     """
 
     for query in queries[:-1]:
-        print('\n', '=' * 25, 'Running Source Query: {0}'.format(query[0]), '=' * 25, '\n')
+        print('\n', '=' * 25, 'Running Source Query: {query_name}'.format(query_name=query[0]), '=' * 25, '\n')
 
         # set data
         data_class.set_data(data)
 
-        print('len of input data is {}'.format(len(data)))
+        print('len of input data is {}'.format(len(data_class.data)))
 
         src_results = data_class.regular_query(query, 'sandbox-tc', url, database)
 
         # make sure the query returned valid results
         if len(src_results) != 0:
 
+            # add back source strings that returned no results
+            input_str = set([x.replace('"', '').strip() for x in list(data_class.data['source_id'].drop_duplicates())])
+            input_str_diff = input_str.difference(set(list(src_results['source_string'])))
+            str_domains = pd.DataFrame(input_str_diff, columns=['source_string'])
+            src_results_merge = pd.concat([src_results, str_domains], axis=0, ignore_index=True, sort=True)
+
             # order columns and rows
-            source_res_cpy = src_results.copy()
+            source_res_cpy = src_results_merge.copy().fillna('')
             source_res_cpy = source_res_cpy[['source_string', 'source_code', 'source_name', 'source_vocabulary']]
             source_res_cpy = source_res_cpy.sort_values(by=['source_string', 'source_code', 'source_vocabulary'],
                                                         ascending=True)
@@ -116,19 +126,24 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
 
                 if data_class.count_spreadsheet_cells(spreadsheet) + data_set_size < 5000000:
 
-                    # write out results
+                    # set tab and write out results
                     tab_name = '{0}'.format(query[0])
+                    data_class.authorize_client()
                     data_class.write_data(spreadsheet, tab_name, source_res_cpy)
 
                 else:
                     # write out results to a new spreadsheet named after the query
                     new_sheet = '{0}_{1}'.format('_'.join(spreadsheet.split('_')[0:2]), query[0])
                     tab_name = '{0}'.format('_'.join(spreadsheet.split('_')[2:]))
+
+                    data_class.authorize_client()
                     data_class.write_data(new_sheet, tab_name, source_res_cpy)
 
             else:
                 # when spreadsheet does not yet exist -- write out results
                 tab_name = '{0}'.format(query[0])
+
+                data_class.authorize_client()
                 data_class.write_data(spreadsheet, tab_name, source_res_cpy)
 
             # run standard queries and write results
@@ -153,15 +168,16 @@ def main():
 
     # QUERY ARGUMENTS
     # queries that map input strings to source_codes
-    src_inputs = ['str', 'source_id', 'source_domain']
-    wild = [[['wildcard_match', '%', src_inputs], ['wildcard_match_child', '%', src_inputs],
-            ['wildcard_match_desc', '%', src_inputs]],
-            [['cswm', '%', src_inputs], ['cswm_child', '%', src_inputs], ['cswm_desc', '%', src_inputs]]]
+    src_inputs1 = ['str', 'source_id', 'source_domain']
+    src_inputs2 = ['str_syn', 'source_id', 'source_domain']
+    wild = [[['wildcard_match', '%', src_inputs1], ['wildcard_match_child', '%', src_inputs1],
+            ['wildcard_match_desc', '%', src_inputs1]],
+            [['cswm', '%', src_inputs2], ['cswm_child', '%', src_inputs2], ['cswm_desc', '%', src_inputs2]]]
 
-    exact = [[['exact_match', ' ', src_inputs], ['exact_match_child', ' ', src_inputs],
-             ['exact_match_desc', ' ', src_inputs]],
-             [['csem', ' ', src_inputs], ['csem_child', ' ', src_inputs],
-             ['csem_desc', ' ', src_inputs]]]
+    exact = [[['exact_match', ' ', src_inputs1], ['exact_match_child', ' ', src_inputs1],
+             ['exact_match_desc', ' ', src_inputs1]],
+             [['csem', ' ', src_inputs2], ['csem_child', ' ', src_inputs2],
+             ['csem_desc', ' ', src_inputs2]]]
 
     # queries that map source_codes to standard_codes
     std_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', 'code_count', databases]
@@ -172,38 +188,46 @@ def main():
     queries = wild + exact, standard[:1]
 
     # PHENOTYPES
-    sheets = ['ADHD_179', 'Appendicitis_236', 'Crohns Disease_77', 'Hypothyroidism_14', 'Peanut Allergy_609',
-              'Steroid-Induced Osteonecrosis_155', 'Systemic Lupus Erythematosus_1058']
+    sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
+              'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
 
-    for sht in sheets[1:2]:
+    for sht in sheets[2:]:
 
-        print('\n', '*' * 25, 'Processing Phenotype: {0}'.format(sht), '*' * 25, '\n')
+        print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
         # load data from GoogleSheet
         all_data = GSProcessor(['Phenotype Definitions', sht])
+        all_data.set_worksheet(sht)
+        # data = gd.get_as_dataframe(all_data.get_worksheet())
 
         # download data
         all_data.data_download()
         data = all_data.get_data().dropna(how='all', axis=1).dropna()
+        # data = data.dropna(how='all', axis=1).dropna()
         data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
 
         # group data types for processing
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         # loop over the data domains (e.g. drug, condition, measurement)
-        for domain in [x for x in data_groups.groups if 'String' in x[1]][1:]:
+        for domain in [x for x in data_groups.groups if 'String' in x[1]]:
             grp_data = data_groups.get_group(domain)
+            print(domain)
 
             # run queries
-            print('\n', '=' * 25, 'Running Queries: {0} domain'.format(domain[0]), '=' * 25, '\n')
+            print('\n', '=' * 25, 'Running Queries: {domain_id} domain'.format(domain_id=domain[0]), '=' * 25, '\n')
 
             for query in queries[0]:
+
+                all_data.authorize_client()
 
                 # create spreadsheet name
                 spreadsheet = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
 
                 # run wildcard and exact match source and standard code queries
                 src_queries(all_data, grp_data, url, databases[0], query + [queries[-1]], domain, spreadsheet)
+
+                time.sleep(30)
 
     # ########################
     # # GBQ: create a new table -- after verifying mappings
