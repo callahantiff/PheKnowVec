@@ -364,7 +364,6 @@ class GSProcessor(object):
 
         if 'code_count' not in input_source[2] or len(merged_results) == 0:
             # we don't want occurrence counts for source string queries or when no query results are returned
-            print('There are {0} unique rows in the results dataframe'.format(len(merged_results)))
             return merged_results
 
         else:
@@ -449,16 +448,15 @@ class GSProcessor(object):
                     frm2 = lambda x: wc_syn_str.format(concept_synonym=x.strip('"').lower())
                     source1 = [set(list(data[input_list[1]].apply(frm1))), set(list(data[input_list[1]].apply(frm2)))]
                     source2 = set(list(data[input_list[2]]))
-                    res = '\n'.join(map(str, source1[0])), '\n'.join(map(str, source1[1])), '"' + \
-                          '","'.join(map(str, source2)) + '"'
-
                 else:
                     frm1 = lambda x: ext_con_str.format(concept_name=x.strip('"').lower())
                     frm2 = lambda x: ext_syn_str.format(concept_synonym=x.strip('"').lower())
                     source1 = [set(list(data[input_list[1]].apply(frm1))), set(list(data[input_list[1]].apply(frm2)))]
                     source2 = set(list(data[input_list[2]]))
-                    res = '\n'.join(map(str, source1[0])), '"' + '\n'.join(map(str, source1[1])), '"' + \
-                          '","'.join(map(str, source2)) + '"'
+
+                # combine results into tuple
+                res = '\n'.join(map(str, source1[0])), '\n'.join(map(str, source1[1])), '"' + \
+                      '","'.join(map(str, source2)) + '"'
 
                 # set-up named tuple
                 arg_dict = {'database': (database, *res)[0], 'concept_name': (database, *res)[1],
@@ -469,13 +467,13 @@ class GSProcessor(object):
                     frm1 = lambda x: wc_con_str.format(concept_name=x.strip('"').lower())
                     source1 = set(list(data[input_list[1]].apply(frm1)))
                     source2 = set(list(data[input_list[2]]))
-                    res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
-
                 else:
                     frm = lambda x: ext_con_str.format(concept_name=x.strip('"').lower())
                     source1 = set(list(data[input_list[1]].apply(frm)))
                     source2 = set(list(data[input_list[2]]))
-                    res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
+
+                # combine results into tuple
+                res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
 
                 # set-up named tuple
                 arg_dict = {'database': (database, *res)[0],

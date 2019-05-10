@@ -34,7 +34,6 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
         # set instance data
         data_class.set_data(data)
-        print('len of source data before getting standard codes is {}'.format(len(data_class.get_data())))
 
         # copy query list before inserting a new list into it
         std_query_mod = copy.deepcopy(std_query)
@@ -93,8 +92,7 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
         # set data
         data_class.set_data(data)
 
-        print('len of input data is {}'.format(len(data_class.data)))
-
+        # run query
         src_results = data_class.regular_query(query, 'sandbox-tc', url, database)
 
         # make sure the query returned valid results
@@ -111,8 +109,6 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
             source_res_cpy = source_res_cpy[['source_string', 'source_code', 'source_name', 'source_vocabulary']]
             source_res_cpy = source_res_cpy.sort_values(by=['source_string', 'source_code', 'source_vocabulary'],
                                                         ascending=True)
-
-            print('len of source data results is {}'.format(len(data_class.get_data())))
 
             # check data dimensions to ensure we can write data
             data_set_size = len(source_res_cpy) * len(list(source_res_cpy))
@@ -191,7 +187,8 @@ def main():
     sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
               'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
 
-    for sht in sheets[2:]:
+    for sht in sheets[1:]:
+        sht = sheets[1]
 
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
