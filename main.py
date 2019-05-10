@@ -180,15 +180,15 @@ def main():
     standard = [['stand_terms', '', std_inputs], ['stand_terms_child', '', std_inputs],
                 ['stand_terms_desc', '',  std_inputs]]
 
-    # putt queries together in a single list
+    # put queries together in a single list
     queries = wild + exact, standard[:1]
 
     # PHENOTYPES
     sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
               'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
 
-    for sht in sheets[1:]:
-        sht = sheets[1]
+    for sht in sheets[3:]:
+        sht = sheets[6]
 
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
@@ -207,7 +207,7 @@ def main():
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         # loop over the data domains (e.g. drug, condition, measurement)
-        for domain in [x for x in data_groups.groups if 'String' in x[1]]:
+        for domain in [x for x in data_groups.groups if 'String' in x[1]][1:]:
             grp_data = data_groups.get_group(domain)
             print(domain)
 

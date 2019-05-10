@@ -85,7 +85,15 @@ class GSProcessor(object):
         return self.worksheet
 
     def set_spreadsheet(self, spreadsheet_id):
-        self.spreadsheet = self.client.open_by_key(spreadsheet_id)
+
+        try:
+            self.spreadsheet = self.client.open_by_key(spreadsheet_id)
+
+        except gspread.exceptions.APIError:
+
+            # re-authorize client
+            self.authorize_client()
+            self.spreadsheet = self.client.open_by_key(spreadsheet_id)
 
     def set_worksheet(self, worksheet_name):
         """Takes a string as an argument and changes active tab in google sheets.
@@ -96,8 +104,18 @@ class GSProcessor(object):
         Returns:
              None.
         """
-        self.worksheet = self.spreadsheet.worksheet(worksheet_name)
-        print('Updated, switched to Google Sheet: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
+
+        try:
+            self.worksheet = self.spreadsheet.worksheet(worksheet_name)
+            print('Updated, switched to: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
+
+        except gspread.exceptions.APIError:
+
+            # re-authorize client
+            self.authorize_client()
+
+            self.worksheet = self.spreadsheet.worksheet(worksheet_name)
+            print('Updated, switched to: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
 
     def create_worksheet(self, spreadsheet_name):
         """Takes a string as an argument and changes active tab in google sheets.
@@ -109,7 +127,14 @@ class GSProcessor(object):
              None.
         """
 
-        self.get_spreadsheet().add_worksheet(title=spreadsheet_name, rows=1, cols=1)
+        try:
+            self.get_spreadsheet().add_worksheet(title=spreadsheet_name, rows=1, cols=1)
+
+        except gspread.exceptions.APIError:
+
+            # re-authorize client
+            self.authorize_client()
+            self.get_spreadsheet().add_worksheet(title=spreadsheet_name, rows=1, cols=1)
 
     def count_spreadsheet_cells(self, spreadsheet_name):
         """counts the number of cells in a worksheet.
@@ -123,7 +148,16 @@ class GSProcessor(object):
 
         cell_count = 0
 
-        spreadsheet = self.client.open(spreadsheet_name)
+        try:
+            spreadsheet = self.client.open(spreadsheet_name)
+
+        except gspread.exceptions.APIError:
+
+            # re-authorize client
+            self.authorize_client()
+
+            spreadsheet = self.client.open(spreadsheet_name)
+
         tabs = [str(x).split("'")[1] for x in list(spreadsheet.worksheets())]
 
         for tab in tabs:
@@ -142,7 +176,15 @@ class GSProcessor(object):
              A list of tabs in a spreadsheet.
         """
 
-        spreadsheet = self.client.open(spreadsheet_name)
+        try:
+            spreadsheet = self.client.open(spreadsheet_name)
+
+        except gspread.exceptions.APIError:
+
+            # re-authorize client
+            self.authorize_client()
+            spreadsheet = self.client.open(spreadsheet_name)
+
         tabs = [str(x).split("'")[1] for x in list(spreadsheet.worksheets())]
 
         return tabs
@@ -158,8 +200,18 @@ class GSProcessor(object):
         Returns:
             None.
         """
-        sh = self.client.create(spreadsheet_name)
-        sh.share(email_address, perm_type='user', role='writer')
+
+        try:
+            sh = self.client.create(spreadsheet_name)
+            sh.share(email_address, perm_type='user', role='writer')
+
+        except gspread.exceptions.APIError:
+
+            # re-authorize client
+            self.authorize_client()
+
+            sh = self.client.create(spreadsheet_name)
+            sh.share(email_address, perm_type='user', role='writer')
 
     def write_data(self, spreadsheet_name, tab_name, results):
         """Writes a pandas dataframe to a specific tab in a GoogleSheet. Data is only written if the tab does not
@@ -189,24 +241,31 @@ class GSProcessor(object):
             self.authorize_client()
 
             # open spreadsheet
-            # self.client.open_by_key(sheet_id)
+            self.client.open_by_key(sheet_id)
 
-            # # search tabs in sheet, if not there write data (ADD BACK LATER)
-            # if tab_name not in self.list_spreadsheet_tabs(spreadsheet_name):
+            # search tabs in sheet, if not there write data (ADD BACK LATER)
+            if tab_name not in self.list_spreadsheet_tabs(spreadsheet_name):
+                # re-authorize client and set spreadsheet
+                self.authorize_client()
+                self.set_spreadsheet(sheet_id)
+                time.sleep(5)
 
-            # re-authorize client and set spreadsheet
-            self.authorize_client()
-            self.set_spreadsheet(sheet_id)
-            time.sleep(5)
+                # create worksheet
+                self.create_worksheet(tab_name)
+                self.set_worksheet(tab_name)
+                time.sleep(5)
+            else:
+                # re-authorize client and set spreadsheet
+                self.authorize_client()
+                self.set_spreadsheet(sheet_id)
+                time.sleep(5)
 
-            # create worksheet
-            # self.create_worksheet(tab_name)
-            self.set_worksheet(tab_name)
-            time.sleep(5)
+                # create worksheet
+                self.set_worksheet(tab_name)
+                time.sleep(5)
 
             # re-authorize client and write data
             self.authorize_client()
-            # gd.set_with_dataframe(self.worksheet, results)
             gd.set_with_dataframe(self.get_worksheet(), results)
 
         else:
@@ -297,7 +356,7 @@ class GSProcessor(object):
             batch = self.data.groupby(np.arange(len(self.data)) // 15000)
 
             for name, group in batch:
-                print('\n Processing chunk {0} of {1}'.format(name + 1, batch.ngroups))
+                print('\n Processing chunk: {0}/{1}'.format(name + 1, batch.ngroups))
 
                 sql_query = self.code_format(url, group, db_, ['code'], '', url.split('/')[-1])
                 res = db.gbq_query(sql_query)
