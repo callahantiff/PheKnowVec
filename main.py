@@ -187,8 +187,7 @@ def main():
     sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
               'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
 
-    for sht in sheets[3:]:
-        sht = sheets[6]
+    for sht in sheets:
 
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
@@ -236,7 +235,7 @@ def main():
     # table_name = "ADHD_"
     # db.create_table(data, table_name)
 
-#
-# if __name__ == '__main__':
-#     with auger.magic([GSProcessor], verbose=True):  # this is the new line and invokes Auger
-#         main()
+
+if __name__ == '__main__':
+    # with auger.magic([GSProcessor], verbose=True):  # this is the new line and invokes Auger
+    main()
