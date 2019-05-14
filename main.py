@@ -39,8 +39,23 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         std_query_mod = copy.deepcopy(std_query)
         std_query_mod[2].insert(len(std_query_mod[2]), list(standard_vocab)[2:])
 
-        # run query
-        std_results = data_class.regular_query(std_query_mod, 'sandbox-tc', url, database)
+        # run query -- to be accurate, we run queries by vocabulary
+        stand_res = []
+
+        # group by source vocabularies for processing
+        data_groups = data.groupby(['source_vocabulary'])
+        x = 0
+
+        for vocab in data_groups.groups:
+            x += 1
+            print('\n Processing vocabulary chunks: {0}/{1}'.format(x, data_groups.ngroups))
+
+            # set instance data + run query
+            data_class.set_data(data_groups.get_group(vocab))
+            stand_res.append(data_class.regular_query(std_query_mod, 'sandbox-tc', url, database))
+
+        # combine results
+        std_results = pd.concat(stand_res, sort=True).drop_duplicates()
 
         if len(std_results) != 0:
             # make sure the query returned valid results
@@ -114,7 +129,7 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
             data_set_size = len(source_res_cpy) * len(list(source_res_cpy))
 
             # sleep system and re-authorize API client
-            time.sleep(10)
+            time.sleep(30)
             data_class.authorize_client()
 
             # try running  code again
@@ -188,6 +203,7 @@ def main():
               'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
 
     for sht in sheets:
+        sht = sheets[1]
 
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
@@ -206,7 +222,7 @@ def main():
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         # loop over the data domains (e.g. drug, condition, measurement)
-        for domain in [x for x in data_groups.groups if 'String' in x[1]][1:]:
+        for domain in [x for x in data_groups.groups if 'String' in x[1]]:
             grp_data = data_groups.get_group(domain)
             print(domain)
 
@@ -214,6 +230,7 @@ def main():
             print('\n', '=' * 25, 'Running Queries: {domain_id} domain'.format(domain_id=domain[0]), '=' * 25, '\n')
 
             for query in queries[0]:
+                print(query)
 
                 all_data.authorize_client()
 
