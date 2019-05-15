@@ -58,25 +58,21 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         std_results = pd.concat(stand_res, sort=True).drop_duplicates()
 
         if len(std_results) != 0:
-            # make sure the query returned valid results
-            counts = len(set(list(std_results['CHCO_count']) + list(std_results['MIMICIII_count'])))
 
-            if counts > 1:
+            # order columns
+            std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
+                                       'standard_code', 'standard_name', 'standard_vocabulary', 'CHCO_count',
+                                       'MIMICIII_count']]
 
-                # order columns
-                std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
-                                           'standard_code', 'standard_name', 'standard_vocabulary', 'CHCO_count',
-                                           'MIMICIII_count']]
+            # order rows
+            std_results = std_results.sort_values(by=['source_string', 'source_code', 'source_vocabulary',
+                                                      'standard_code', 'standard_vocabulary'], ascending=True)
 
-                # order rows
-                std_results = std_results.sort_values(by=['source_string', 'source_code', 'source_vocabulary',
-                                                          'standard_code', 'standard_vocabulary'], ascending=True)
+            # write out results
+            tab_name = '{0}_{1}'.format(spreadsheet_name[1], std_query[0])
 
-                # write out results
-                tab_name = '{0}_{1}'.format(spreadsheet_name[1], std_query[0])
-
-                data_class.authorize_client()
-                data_class.write_data(spreadsheet_name[0], tab_name, std_results)
+            data_class.authorize_client()
+            data_class.write_data(spreadsheet_name[0], tab_name, std_results)
 
     return None
 
@@ -201,9 +197,7 @@ def main():
     # PHENOTYPES
     sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
               'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
-
     for sht in sheets:
-        sht = sheets[1]
 
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
@@ -230,8 +224,6 @@ def main():
             print('\n', '=' * 25, 'Running Queries: {domain_id} domain'.format(domain_id=domain[0]), '=' * 25, '\n')
 
             for query in queries[0]:
-                print(query)
-
                 all_data.authorize_client()
 
                 # create spreadsheet name
@@ -241,6 +233,8 @@ def main():
                 src_queries(all_data, grp_data, url, databases[0], query + [queries[-1]], domain, spreadsheet)
 
                 time.sleep(30)
+        time.sleep(60)
+
 
     # ########################
     # # GBQ: create a new table -- after verifying mappings
