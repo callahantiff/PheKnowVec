@@ -29,7 +29,6 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
     # process second half of queries -- getting standard codes
     for std_query in queries:
-
         print('\n', '=' * 25, 'Running Standard Query: {0}'.format(std_query[0]), '=' * 25, '\n')
 
         # set instance data
@@ -58,7 +57,6 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         std_results = pd.concat(stand_res, sort=True).drop_duplicates()
 
         if len(std_results) != 0:
-
             # order columns
             std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
                                        'standard_code', 'standard_name', 'standard_vocabulary', 'CHCO_count',
@@ -70,7 +68,6 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
             # write out results
             tab_name = '{0}_{1}'.format(spreadsheet_name[1], std_query[0])
-
             data_class.authorize_client()
             data_class.write_data(spreadsheet_name[0], tab_name, std_results)
 
@@ -130,26 +127,20 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
 
             # try running  code again
             if spreadsheet in {sheet.title: sheet.id for sheet in data_class.client.openall()}.keys():
-
                 if data_class.count_spreadsheet_cells(spreadsheet) + data_set_size < 5000000:
-
                     # set tab and write out results
                     tab_name = '{0}'.format(query[0])
                     data_class.authorize_client()
                     data_class.write_data(spreadsheet, tab_name, source_res_cpy)
-
                 else:
                     # write out results to a new spreadsheet named after the query
                     new_sheet = '{0}_{1}'.format('_'.join(spreadsheet.split('_')[0:2]), query[0])
                     tab_name = '{0}'.format('_'.join(spreadsheet.split('_')[2:]))
-
                     data_class.authorize_client()
                     data_class.write_data(new_sheet, tab_name, source_res_cpy)
-
             else:
                 # when spreadsheet does not yet exist -- write out results
                 tab_name = '{0}'.format(query[0])
-
                 data_class.authorize_client()
                 data_class.write_data(spreadsheet, tab_name, source_res_cpy)
 
@@ -197,28 +188,25 @@ def main():
     # PHENOTYPES
     sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
               'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
-    for sht in sheets:
 
+    for sht in sheets:
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
         # load data from GoogleSheet
         all_data = GSProcessor(['Phenotype Definitions', sht])
         all_data.set_worksheet(sht)
-        # data = gd.get_as_dataframe(all_data.get_worksheet())
 
         # download data
         all_data.data_download()
         data = all_data.get_data().dropna(how='all', axis=1).dropna()
-        # data = data.dropna(how='all', axis=1).dropna()
         data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
 
         # group data types for processing
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         # loop over the data domains (e.g. drug, condition, measurement)
-        for domain in [x for x in data_groups.groups if 'String' in x[1]]:
+        for domain in [x for x in data_groups.groups if 'String' in x[1]][:1]:
             grp_data = data_groups.get_group(domain)
-            print(domain)
 
             # run queries
             print('\n', '=' * 25, 'Running Queries: {domain_id} domain'.format(domain_id=domain[0]), '=' * 25, '\n')
@@ -234,7 +222,6 @@ def main():
 
                 time.sleep(30)
         time.sleep(60)
-
 
     # ########################
     # # GBQ: create a new table -- after verifying mappings
