@@ -13,6 +13,8 @@ from datetime import datetime
 from google.oauth2 import service_account
 from pandas_gbq import exceptions
 
+# TODO: improve handling of API errors, the approach works but adds in some redundant rer-activation of the API client.
+
 
 class GBQ(object):
     """Class creates a Google Big Query object which is used to query existing tables and create new tables.

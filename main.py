@@ -8,6 +8,7 @@ import pandas as pd
 import time
 
 from scripts.data_processor import GSProcessor
+from scripts.big_query import *
 
 
 def standard_queries(data_class, data, queries, url, database, standard_vocab, spreadsheet_name):
@@ -24,10 +25,12 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         spreadsheet_name: A string containing the name of a GoogleSheet spreadsheet.
 
     Returns:
-        None.
+        If spreadsheet_name is empty then a Pandas data frame of standard code results is returned, otherwise None is
+        returned and the results are written to a Google Sheet.
     """
 
     # process second half of queries -- getting standard codes
+    std_query_res = []
     for std_query in queries:
         print('\n', '=' * 25, 'Running Standard Query: {0}'.format(std_query[0]), '=' * 25, '\n')
 
@@ -38,7 +41,7 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         std_query_mod = copy.deepcopy(std_query)
         std_query_mod[2].insert(len(std_query_mod[2]), list(standard_vocab)[2:])
 
-        # run query -- to be accurate, we run queries by vocabulary
+        # run query -- to be accurate when mapping source codes to standard codes, we run queries by vocabulary
         stand_res = []
 
         # group by source vocabularies for processing
@@ -57,24 +60,28 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         std_results = pd.concat(stand_res, sort=True).drop_duplicates()
 
         if len(std_results) != 0:
-            # order columns
-            std_results = std_results[['source_string', 'source_code', 'source_name', 'source_vocabulary',
-                                       'standard_code', 'standard_name', 'standard_vocabulary', 'CHCO_count',
-                                       'MIMICIII_count']]
 
-            # order rows
-            std_results = std_results.sort_values(by=['source_string', 'source_code', 'source_vocabulary',
-                                                      'standard_code', 'standard_vocabulary'], ascending=True)
+            if len(spreadsheet_name) == 2:
+                # write out results
+                tab_name = '{0}_{1}'.format(spreadsheet_name[1], std_query[0])
+                data_class.authorize_client()
+                data_class.write_data(spreadsheet_name[0], tab_name, std_results)
 
-            # write out results
-            tab_name = '{0}_{1}'.format(spreadsheet_name[1], std_query[0])
-            data_class.authorize_client()
-            data_class.write_data(spreadsheet_name[0], tab_name, std_results)
+                return None
 
-    return None
+            else:
+                if spreadsheet_name[0] == '':
+                    code_set_name = std_query[0]
+                else:
+                    code_set_name = spreadsheet_name[0] + '_' + std_query[0]
+
+                std_results['standard_code_set'] = code_set_name
+                std_query_res.append(std_results)
+
+    return pd.concat(std_query_res, sort=True).drop_duplicates()
 
 
-def src_queries(data_class, data, url, database, queries, standard_vocab, spreadsheet):
+def src_queries(data_class, data, url, database, queries, standard_vocab, spreadsheet, write_opt):
     """Runs a list of queries against a Google BigQuery database designed to map a set of source strings or codes to
     OMOP concept_codes. The results are returned as a pandas dataframe. These results are then passed to a second
     function which maps the OMOP source concept_codes to concept_ids in a standard OMOP vocabulary. Finally,
@@ -88,12 +95,14 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
         queries: A list of query lists. The function assumes that this list contains three lists: 1) wildcard match,
         exact match, and standard.
         standard_vocab: A string that contains the name of a OMOP standard vocabulary to map source codes to.
-        spreadsheet: .
+        spreadsheet: A string that contains the name of the spreadsheet to write out results to.
+        write_opt: A string that contains information on whether to write data to file or not.
 
     Returns:
-        None.
+        If write_opt is empty then a Pandas data frame of source and standard code results is returned,
+        otherwise None is returned and the results are written to a Google Sheet.
     """
-
+    src_std_results = []
     for query in queries[:-1]:
         print('\n', '=' * 25, 'Running Source Query: {query_name}'.format(query_name=query[0]), '=' * 25, '\n')
 
@@ -118,41 +127,57 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
             source_res_cpy = source_res_cpy.sort_values(by=['source_string', 'source_code', 'source_vocabulary'],
                                                         ascending=True)
 
-            # check data dimensions to ensure we can write data
-            data_set_size = len(source_res_cpy) * len(list(source_res_cpy))
+            # verify if writing data to file or back to GBQ
+            if write_opt != 'file':
+                # check data dimensions to ensure we can write data
+                data_set_size = len(source_res_cpy) * len(list(source_res_cpy))
 
-            # sleep system and re-authorize API client
-            time.sleep(30)
-            data_class.authorize_client()
+                # sleep system and re-authorize API client
+                time.sleep(30)
+                data_class.authorize_client()
 
-            # try running  code again
-            if spreadsheet in {sheet.title: sheet.id for sheet in data_class.client.openall()}.keys():
-                if data_class.count_spreadsheet_cells(spreadsheet) + data_set_size < 5000000:
-                    # set tab and write out results
+                # try running  code again
+                if spreadsheet in {sheet.title: sheet.id for sheet in data_class.client.openall()}.keys():
+                    if data_class.count_spreadsheet_cells(spreadsheet) + data_set_size < 5000000:
+                        # set tab and write out results
+                        tab_name = '{0}'.format(query[0])
+                        data_class.authorize_client()
+                        data_class.write_data(spreadsheet, tab_name, source_res_cpy)
+                    else:
+                        # write out results to a new spreadsheet named after the query
+                        new_sheet = '{0}_{1}'.format('_'.join(spreadsheet.split('_')[0:2]), query[0])
+                        tab_name = '{0}'.format('_'.join(spreadsheet.split('_')[2:]))
+                        data_class.authorize_client()
+                        data_class.write_data(new_sheet, tab_name, source_res_cpy)
+                else:
+                    # when spreadsheet does not yet exist -- write out results
                     tab_name = '{0}'.format(query[0])
                     data_class.authorize_client()
                     data_class.write_data(spreadsheet, tab_name, source_res_cpy)
-                else:
-                    # write out results to a new spreadsheet named after the query
-                    new_sheet = '{0}_{1}'.format('_'.join(spreadsheet.split('_')[0:2]), query[0])
-                    tab_name = '{0}'.format('_'.join(spreadsheet.split('_')[2:]))
-                    data_class.authorize_client()
-                    data_class.write_data(new_sheet, tab_name, source_res_cpy)
-            else:
-                # when spreadsheet does not yet exist -- write out results
-                tab_name = '{0}'.format(query[0])
-                data_class.authorize_client()
-                data_class.write_data(spreadsheet, tab_name, source_res_cpy)
 
-            # run standard queries and write results
-            src_spreadsheet = [spreadsheet, tab_name]
-            standard_queries(data_class, src_results, queries[-1], url, database, standard_vocab, src_spreadsheet)
+                # run standard queries and write results
+                src_spreadsheet = [spreadsheet, tab_name]
+                standard_queries(data_class, src_results, queries[-1], url, database, standard_vocab, src_spreadsheet)
+
+            else:
+                # run standard queries and write results
+                st_data = standard_queries(data_class, src_results, queries[-1], url, database, standard_vocab,
+                                           [query[0]])
+                st_data['source_code_set'] = query[0]
+
+                # append results
+                src_std_results.append(st_data)
 
             # sleep system and re-authorize API client
             time.sleep(10)
             data_class.authorize_client()
 
-    return None
+    # only return results if there is data
+    if len(src_std_results) > 0:
+        return pd.concat(src_std_results, sort=True).drop_duplicates()
+
+    else:
+        return None
 
 
 def main():
@@ -168,22 +193,23 @@ def main():
     # queries that map input strings to source_codes
     src_inputs1 = ['str', 'source_id', 'source_domain']
     src_inputs2 = ['str_syn', 'source_id', 'source_domain']
-    wild = [[['wildcard_match', '%', src_inputs1], ['wildcard_match_child', '%', src_inputs1],
-            ['wildcard_match_desc', '%', src_inputs1]],
-            [['cswm', '%', src_inputs2], ['cswm_child', '%', src_inputs2], ['cswm_desc', '%', src_inputs2]]]
+    wild = [[['fuzzy_none_self', '%', src_inputs1], ['fuzzy_none_child', '%', src_inputs1],
+            ['fuzzy_none_desc', '%', src_inputs1]], [['fuzzy_syn_self', '%', src_inputs2],
+            ['fuzzy_syn_child', '%', src_inputs2], ['fuzzy_syn_desc', '%', src_inputs2]]]
 
-    exact = [[['exact_match', ' ', src_inputs1], ['exact_match_child', ' ', src_inputs1],
-             ['exact_match_desc', ' ', src_inputs1]],
-             [['csem', ' ', src_inputs2], ['csem_child', ' ', src_inputs2],
-             ['csem_desc', ' ', src_inputs2]]]
+    exact = [[['exact_none_self', ' ', src_inputs1], ['exact_none_child', ' ', src_inputs1],
+             ['exact_none_desc', ' ', src_inputs1]],
+             [['exact_syn_self', ' ', src_inputs2], ['exact_syn_child', ' ', src_inputs2],
+             ['exact_syn_desc', ' ', src_inputs2]]]
 
     # queries that map source_codes to standard_codes
-    std_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', 'code_count', databases]
-    standard = [['stand_terms', '', std_inputs], ['stand_terms_child', '', std_inputs],
-                ['stand_terms_desc', '',  std_inputs]]
+    # std_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', 'code_count', databases]
+    std_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', '', databases]
+    standard = [['stand_none_self', '', std_inputs], ['stand_none_child', '', std_inputs],
+                ['stand_none_desc', '',  std_inputs]]
 
     # put queries together in a single list
-    queries = wild + exact, standard[:1]
+    queries = wild + exact, standard
 
     # PHENOTYPES
     sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
@@ -199,41 +225,109 @@ def main():
         # download data
         all_data.data_download()
         data = all_data.get_data().dropna(how='all', axis=1).dropna()
-        data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
+        # data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
 
         # group data types for processing
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
+        # create variable to store data
+        domain_results = []
+
         # loop over the data domains (e.g. drug, condition, measurement)
-        for domain in [x for x in data_groups.groups if 'String' in x[1]][:1]:
-            grp_data = data_groups.get_group(domain)
+        for domain in data_groups.groups:
+            print(domain)
 
-            # run queries
-            print('\n', '=' * 25, 'Running Queries: {domain_id} domain'.format(domain_id=domain[0]), '=' * 25, '\n')
+            if 'String' in domain[1]:
+                # run queries
+                print('\n', '=' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '=' * 25, '\n')
 
-            for query in queries[0]:
-                all_data.authorize_client()
+                # store results
+                query_res = []
+                grp_data = data_groups.get_group(domain)
+                process_data = grp_data.copy()
 
-                # create spreadsheet name
-                spreadsheet = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
+                for query in queries[0]:
+                    all_data.authorize_client()
 
-                # run wildcard and exact match source and standard code queries
-                src_queries(all_data, grp_data, url, databases[0], query + [queries[-1]], domain, spreadsheet)
+                    # create spreadsheet name
+                    spreadsheet = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
 
-                time.sleep(30)
+                    # run wildcard and exact match source and standard code queries
+                    res = src_queries(all_data, process_data, url, databases[0], query + [queries[-1]], domain,
+                                      spreadsheet, 'file')
+
+                    # fix formatting of source_string
+                    res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
+
+                    # re-order columns
+                    res = res[['source_string', 'source_code', 'source_name', 'source_domain',
+                               'source_vocabulary', 'source_code_set', 'standard_code', 'standard_name',
+                               'standard_domain', 'standard_vocabulary', 'standard_code_set']]
+
+                    query_res.append(res)
+                    time.sleep(30)
+            else:
+                # run queries
+                print('\n', '=' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '=' * 25, '\n')
+
+                # store results
+                grp_data = data_groups.get_group(domain)
+
+                # rename column
+                process_data = grp_data.copy()
+                process_data['source_code'] = list(process_data['source_id'])
+                process_data['source_string'] = None
+
+                # run queries
+                print('\n', '=' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '=' * 25, '\n')
+
+                # run standard code queries
+                query_res = standard_queries(all_data, process_data, standard, url, databases[0], domain, [''])
+                query_res['source_domain'] = domain[0]
+                query_res['source_string'] = query_res['source_code']
+                query_res['source_code_set'] = 'exact_none_self'
+
+                # re-order columns
+                query_res = query_res[['source_string', 'source_code', 'source_name', 'source_domain',
+                                       'source_vocabulary', 'source_code_set', 'standard_code', 'standard_name',
+                                       'standard_domain', 'standard_vocabulary', 'standard_code_set']]
+
+            # append domain data to list of domain data
+            if 'String' in domain[1]:
+                domain_results.append(pd.concat(query_res, sort=True).drop_duplicates())
+            else:
+                domain_results.append(query_res.drop_duplicates())
+
+        # combine results
+        concat_domain_results = pd.concat(domain_results, sort=True).drop_duplicates()
+
+        # add columns from original data set
+        merged_domain_results = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
+                                                    'phenotype_definition_label', 'input_type',
+                                                    'source_id']],
+                                         right=concat_domain_results, how='outer',
+                                         left_on='source_id', right_on='source_string')
+
+        # merged_domain_results.to_csv(r'export_dataframe.csv', index=None, header=True)
+
+        # write data to CHCO + MIMIC databases
+        for db in databases:
+            # GBQ: create a new table -- after verifying mappings
+            db_conn = GBQ('sandbox-tc', db)
+
+            # create a new table + write data to database
+            table_name = sht.split('_')[0].upper() + '_COHORT_VARIABLES'
+            db_conn.create_table(table_name, merged_domain_results)
+
         time.sleep(60)
 
-    # ########################
-    # # GBQ: create a new table -- after verifying mappings
-    # db_kids = GBQ('sandbox-tc', 'CHCO_DeID_Oct2018')
-    # # db_mimic = GBQ("sandbox-tc", "CHCO_DeID_Oct2018")
-    # # tables = db.table_info()
-    #
-    # # create a new table
-    # table_name = "ADHD_"
-    # db.create_table(data, table_name)
+# merge_test = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
+#                                  'phenotype_definition_label', 'input_type', 'source_id']],
+#                                          right=res, how='outer',
+#                                          left_on='source_id', right_on='source_string')
+#
+# merge_test.to_csv(r'export_dataframe.csv', index=None, header=True)
 
-
-if __name__ == '__main__':
-    # with auger.magic([GSProcessor], verbose=True):  # this is the new line and invokes Auger
-    main()
+# if __name__ == '__main__':
+#     # with auger.magic([GSProcessor], verbose=True):  # this is the new line and invokes Auger
+#     main()

@@ -19,6 +19,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from scripts.big_query import *
 
+# TODO: improve handling of API errors, the approach works but adds in some redundant rer-activation of the API client.
+
 
 class GSProcessor(object):
     """Class creates a data frame from a Google Sheet and contains methods to manipulate the data it contains.
