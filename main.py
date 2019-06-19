@@ -25,14 +25,15 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         spreadsheet_name: A string containing the name of a GoogleSheet spreadsheet.
 
     Returns:
-        If spreadsheet_name is empty then a Pandas data frame of standard code results is returned, otherwise None is
-        returned and the results are written to a Google Sheet.
+        If spreadsheet_name is empty and the query returned results then a Pandas data frame of standard code
+        results is returned, otherwise None is returned and the results are written to a Google Sheet.
     """
 
     # process second half of queries -- getting standard codes
     std_query_res = []
     for std_query in queries:
         print('\n', '=' * 25, 'Running Standard Query: {0}'.format(std_query[0]), '=' * 25, '\n')
+        time.sleep(10)
 
         # set instance data
         data_class.set_data(data)
@@ -78,7 +79,9 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
                 std_results['standard_code_set'] = code_set_name
                 std_query_res.append(std_results)
 
-    return pd.concat(std_query_res, sort=True).drop_duplicates()
+    # verify that the query returned results  -- only returning if more than 0 rows of data
+    if len(std_query_res) > 0:
+        return pd.concat(std_query_res, sort=True).drop_duplicates()
 
 
 def src_queries(data_class, data, url, database, queries, standard_vocab, spreadsheet, write_opt):
@@ -160,6 +163,10 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
                 standard_queries(data_class, src_results, queries[-1], url, database, standard_vocab, src_spreadsheet)
 
             else:
+                # sleep system and re-authorize API client
+                time.sleep(30)
+                data_class.authorize_client()
+
                 # run standard queries and write results
                 st_data = standard_queries(data_class, src_results, queries[-1], url, database, standard_vocab,
                                            [query[0]])
@@ -180,8 +187,42 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
         return None
 
 
-def main():
+def source_code_populator(queries, std_results):
+    """takes a list of queries and a pandas data frame of results and replicates the data frame n times, where n is
+    the number of source queries. This is only performed when a source code is provided as the input. We do this
+    because we assume that we  have the final set of source codes, which differs from when a string is given as input
+    and we have to explore all potential mappings.
 
+    Args:
+        queries: a list of lists, where each list holds a set of lists and each of those sub-lists contains query
+        information.
+        std_results: a pandas data frame of query results.
+
+    Returns:
+         An updated pandas data frame.
+    """
+    query_res_src = []
+    for src in [x[0] for y in queries[0] for x in y]:
+
+        # copy data frame
+        query_res_cpy = std_results.copy()
+
+        # add source code label
+        query_res_cpy['source_code_set'] = src
+        std_code_set = query_res_cpy['standard_code_set'].apply(lambda x: src + '_' + x)
+        query_res_cpy['standard_code_set'] = std_code_set
+
+        query_res_src.append(query_res_cpy)
+
+    concat_query_res = pd.concat(query_res_src, sort=True).drop_duplicates()
+
+    if len(concat_query_res) == len(std_results) * len([x[0] for y in queries[0] for x in y]):
+        return concat_query_res
+    else:
+        raise ValueError('Error - the number of replicated rows is incorrect')
+
+
+def main():
     ########################
     # list databases
     databases = ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']
@@ -194,28 +235,30 @@ def main():
     src_inputs1 = ['str', 'source_id', 'source_domain']
     src_inputs2 = ['str_syn', 'source_id', 'source_domain']
     wild = [[['fuzzy_none_self', '%', src_inputs1], ['fuzzy_none_child', '%', src_inputs1],
-            ['fuzzy_none_desc', '%', src_inputs1]], [['fuzzy_syn_self', '%', src_inputs2],
-            ['fuzzy_syn_child', '%', src_inputs2], ['fuzzy_syn_desc', '%', src_inputs2]]]
+             ['fuzzy_none_desc', '%', src_inputs1]], [['fuzzy_syn_self', '%', src_inputs2],
+                                                      ['fuzzy_syn_child', '%', src_inputs2],
+                                                      ['fuzzy_syn_desc', '%', src_inputs2]]]
 
     exact = [[['exact_none_self', ' ', src_inputs1], ['exact_none_child', ' ', src_inputs1],
-             ['exact_none_desc', ' ', src_inputs1]],
-             [['exact_syn_self', ' ', src_inputs2], ['exact_syn_child', ' ', src_inputs2],
-             ['exact_syn_desc', ' ', src_inputs2]]]
+              ['exact_none_desc', ' ', src_inputs1]], [['exact_syn_self', ' ', src_inputs2],
+                                                       ['exact_syn_child', ' ', src_inputs2],
+                                                       ['exact_syn_desc', ' ', src_inputs2]]]
 
     # queries that map source_codes to standard_codes
     # std_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', 'code_count', databases]
     std_inputs = ['code', 'source_code', 'source_vocabulary', 'source_domain', '', databases]
     standard = [['stand_none_self', '', std_inputs], ['stand_none_child', '', std_inputs],
-                ['stand_none_desc', '',  std_inputs]]
+                ['stand_none_desc', '', std_inputs]]
 
     # put queries together in a single list
     queries = wild + exact, standard
 
     # PHENOTYPES
-    sheets = ['ADHD_179', 'Appendicitis_236', 'CrohnsDisease_77', 'Hypothyroidism_14', 'PeanutAllergy_609',
-              'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058']
+    sheets = ['ADHD_179', 'SickleCellDisease_615', 'SleepApnea_240', 'Appendicitis_236', 'CrohnsDisease_77',
+              'Hypothyroidism_14', 'PeanutAllergy_609', 'SteroidInducedOsteonecrosis_155',
+              'SystemicLupusErythematosus_1058']
 
-    for sht in sheets:
+    for sht in sheets[1:4]:
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
         # load data from GoogleSheet
@@ -256,16 +299,17 @@ def main():
                     res = src_queries(all_data, process_data, url, databases[0], query + [queries[-1]], domain,
                                       spreadsheet, 'file')
 
-                    # fix formatting of source_string
-                    res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
+                    if res is not None:
+                        # fix formatting of source_string
+                        res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
 
-                    # re-order columns
-                    res = res[['source_string', 'source_code', 'source_name', 'source_domain',
-                               'source_vocabulary', 'source_code_set', 'standard_code', 'standard_name',
-                               'standard_domain', 'standard_vocabulary', 'standard_code_set']]
+                        # re-order columns
+                        res = res[['source_string', 'source_code', 'source_concept_id', 'source_name', 'source_domain',
+                                   'source_vocabulary', 'source_code_set', 'standard_code', 'standard_concept_id',
+                                   'standard_name', 'standard_domain', 'standard_vocabulary', 'standard_code_set']]
 
-                    query_res.append(res)
-                    time.sleep(30)
+                        query_res.append(res)
+                        time.sleep(60)
             else:
                 # run queries
                 print('\n', '=' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '=' * 25, '\n')
@@ -287,10 +331,15 @@ def main():
                 query_res['source_string'] = query_res['source_code']
                 query_res['source_code_set'] = 'exact_none_self'
 
+                # add source codes
+                updated_query_res = source_code_populator(queries, query_res)
+
                 # re-order columns
-                query_res = query_res[['source_string', 'source_code', 'source_name', 'source_domain',
-                                       'source_vocabulary', 'source_code_set', 'standard_code', 'standard_name',
-                                       'standard_domain', 'standard_vocabulary', 'standard_code_set']]
+                query_res = updated_query_res[['source_string', 'source_code', 'source_concept_id', 'source_name',
+                                               'source_domain', 'source_vocabulary', 'source_code_set',
+                                               'standard_code', 'standard_concept_id', 'standard_name',
+                                               'standard_domain', 'standard_vocabulary', 'standard_code_set']]
+                time.sleep(60)
 
             # append domain data to list of domain data
             if 'String' in domain[1]:
@@ -319,14 +368,20 @@ def main():
             table_name = sht.split('_')[0].upper() + '_COHORT_VARIABLES'
             db_conn.create_table(table_name, merged_domain_results)
 
-        time.sleep(60)
+        time.sleep(90)
+
+#
+# for index, row in merged_domain_results.iterrows():
+#     if row['standard_code_set'] == 'stand_none_self' or row['standard_code_set'] == 'stand_none_child' or \
+#             row['standard_code_set'] == 'stand_none_desc':
+#         print(row)
 
 # merge_test = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
 #                                  'phenotype_definition_label', 'input_type', 'source_id']],
 #                                          right=res, how='outer',
 #                                          left_on='source_id', right_on='source_string')
 #
-# merge_test.to_csv(r'export_dataframe.csv', index=None, header=True)
+# merged_domain_results.to_csv(r'export_dataframe.csv', index=None, header=True)
 
 # if __name__ == '__main__':
 #     # with auger.magic([GSProcessor], verbose=True):  # this is the new line and invokes Auger
