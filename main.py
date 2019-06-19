@@ -258,7 +258,8 @@ def main():
               'Hypothyroidism_14', 'PeanutAllergy_609', 'SteroidInducedOsteonecrosis_155',
               'SystemicLupusErythematosus_1058']
 
-    for sht in sheets[1:4]:
+    for sht in sheets[4:5]:
+        print(sht)
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
         # load data from GoogleSheet
@@ -342,10 +343,11 @@ def main():
                 time.sleep(60)
 
             # append domain data to list of domain data
-            if 'String' in domain[1]:
-                domain_results.append(pd.concat(query_res, sort=True).drop_duplicates())
-            else:
-                domain_results.append(query_res.drop_duplicates())
+            if len(query_res) > 0:
+                if 'String' in domain[1]:
+                    domain_results.append(pd.concat(query_res, sort=True).drop_duplicates())
+                else:
+                    domain_results.append(query_res.drop_duplicates())
 
         # combine results
         concat_domain_results = pd.concat(domain_results, sort=True).drop_duplicates()
