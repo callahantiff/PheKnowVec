@@ -31,7 +31,7 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
     std_query_res = []
 
     for std_query in queries:
-        print('\n', '=' * 25, 'Running Standard Query: {0}'.format(std_query[0]), '=' * 25, '\n')
+        print('STANDARD QUERY: {query_name}'.format(query_name=std_query[0]))
         time.sleep(10)
 
         # set instance data
@@ -50,7 +50,7 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
         for vocab in data_groups.groups:
             x += 1
-            print('\n Processing vocabulary chunks: {0}/{1}'.format(x, data_groups.ngroups))
+            # print('\n Processing vocabulary chunks: {0}/{1}'.format(x, data_groups.ngroups))
 
             # set instance data + run query
             data_class.set_data(data_groups.get_group(vocab))
@@ -106,7 +106,7 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
     """
     src_std_results = []
     for query in queries[:-1]:
-        print('\n', '=' * 25, 'Running Source Query: {query_name}'.format(query_name=query[0]), '=' * 25, '\n')
+        print('SOURCE QUERY: {query_name}'.format(query_name=query[0]))
 
         # set data
         data_class.set_data(data)
@@ -199,6 +199,9 @@ def source_code_populator(queries, std_results):
 
     Returns:
          An updated pandas data frame.
+
+    Raises:
+        ValueError: An error occurred if the merged dataset contains an incorrect number of rows.
     """
     query_res_src = []
     for src in [x[0] for y in queries[0] for x in y]:
@@ -210,7 +213,6 @@ def source_code_populator(queries, std_results):
         query_res_cpy['source_code_set'] = src
         std_code_set = query_res_cpy['standard_code_set'].apply(lambda x: src + '_' + x)
         query_res_cpy['standard_code_set'] = std_code_set
-
         query_res_src.append(query_res_cpy)
 
     concat_query_res = pd.concat(query_res_src, sort=True).drop_duplicates()
@@ -251,11 +253,11 @@ def main():
 
     # PHENOTYPES
     sheets = ['ADHD_179', 'SickleCellDisease_615', 'SleepApnea_240', 'Appendicitis_236', 'CrohnsDisease_77',
-              'PeanutAllergy_609', 'SteroidInducedOsteonecrosis_155',
-              'SystemicLupusErythematosus_1058', 'Hypothyroidism_14']
+              'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058', 'PeanutAllergy_609',
+              'Hypothyroidism_14']
 
     for sht in sheets[6:]:
-        print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
+        print('\n\n', '*' * 25, 'Processing: {phenotype}'.format(phenotype=sht), '*' * 25)
 
         # load data from GoogleSheet
         all_data = GSProcessor(['Phenotype Definitions', sht])
@@ -267,10 +269,11 @@ def main():
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         for db in databases:
+            print('DATABASE: {db}'.format(db=db))
+
             # loop over the data domains (e.g. drug, condition, measurement)
-            # domain_results = []
             for domain in data_groups.groups:
-                print('\n', '**' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '**' * 25)
+                print('\n Running Queries on: {domain}-{type}s'.format(domain=domain[0], type=domain[1]))
 
                 if 'String' in domain[1]:
                     query_res = []
@@ -279,11 +282,11 @@ def main():
 
                     for query in queries[0]:
                         all_data.authorize_client()
-                        spreadsheet = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
+                        sprdsht = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
 
                         # run source + standard queries
-                        res = src_queries(all_data, process_data, url, db, query + [queries[-1]], domain,
-                                          spreadsheet, 'file')
+                        updated_query = query + [queries[-1]]
+                        res = src_queries(all_data, process_data, url, db, updated_query, domain, sprdsht, 'file')
 
                         if res is not None:
                             res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
@@ -314,8 +317,6 @@ def main():
                     else:
                         domain_results = query_res.drop_duplicates()
 
-                    # # combine results 9,213,222
-                    # concat_domain_results = pd.concat(domain_results, sort=True).drop_duplicates()
                     # add columns from original data set
                     merged_domain_results = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
                                                                 'phenotype_definition_label', 'input_type', 'source_id']],
@@ -325,43 +326,8 @@ def main():
                                                      right_on='source_string')
 
                     # write data to CHCO + MIMIC databases
-                    print('\n + Writing {sht}: {data} to {db} + \n'.format(sht=sht, data=domain[0], db=db))
+                    print('Writing {sht}: {data} to {db}'.format(sht=sht, data=domain[0], db=db))
                     table = str(db) + '_' + sht.split('_')[0].upper() + '_' + str(domain[0]) + '_COHORT_VARS.csv'
                     merged_domain_results.to_csv(r'temp_results/' + str(table), index=None, header=True)
 
-                    # for db in databases:
-                    # table_name = sht.split('_')[0].upper() + '_COHORT_VARIABLES_2'
-                    # db_conn = GBQ('sandbox-tc', db)
-                    # db_conn.create_table(table_name, merged_domain_results, 'append')
                     time.sleep(90)
-
-
-#
-# from datalab.context import Context
-# import datalab.storage as storage
-# import datalab.bigquery as bq
-# import pandas as pd
-# from pandas import DataFrame
-# import time
-#
-# #Alternative 3
-# start = time.time()
-# sample_bucket_name = 'sandbox-tc.appspot.com'
-# sample_bucket_path = 'gs://sandbox-tc.appspot.com'
-# sample_bucket_object = sample_bucket_path + '/Hello.txt'
-# bigquery_dataset_name = 'TestDataSet'
-# bigquery_table_name = 'TestTable'
-#
-# # Define storage bucket
-# sample_bucket = storage.Bucket(sample_bucket_name)
-#
-# # Create or overwrite the existing table if it exists
-# table_schema = bq.Schema.from_dataframe(merged_domain_results)
-#
-# # Write the DataFrame to GCS (Google Cloud Storage)
-# %storage write --variable not_so_simple_dataframe --object $sample_bucket_object
-#
-# # Write the DataFrame to a BigQuery table
-# table.insert_data(not_so_simple_dataframe)
-# end = time.time()
-# print("time alternative 3 " + str(end - start))
