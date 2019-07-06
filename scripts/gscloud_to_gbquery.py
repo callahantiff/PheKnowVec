@@ -5,24 +5,46 @@
 
 from google.cloud import storage
 from google.cloud import bigquery
+import warnings
+
+warnings.filterwarnings("ignore")
+# TODO: Update authentication to use storage account rather than Google Cloud SDK.
 
 
-def storage_list(bucket_name):
+def parses_gsc_filepath(bucket_name, bucket_directory):
+    """Extract and parses file paths from a Google Cloud Storage directory into a nested list.
+
+       input: temp_results/CHCO_DeID_Oct2018_APPENDICITIS_Condition_COHORT_VARS.csv
+
+    Args:
+        bucket_name: A string naming the name of a Google Cloud Storage Bucket.
+        bucket_directory: A string naming a Google Cloud Storage directory.
+
+    Returns:
+        A nested list of information needed to create Google BigQuery tables. For example:
+
+        [['Google BigQuery [DB]', 'Google BigQuery [DB].[TABLE_NAME]', gscloud file path/file.csv]]
+    """
 
     tables = []
 
     storage_client = storage.Client()
     bucket = storage_client.get_bucket(bucket_name)
 
-    blobs = bucket.list_blobs(prefix='temp_results', delimiter=None)
+    # retrieve relevant file paths
+    blobs = bucket.list_blobs(prefix=bucket_directory, delimiter=None)
 
     for blob in blobs:
+
+        # database name
         db = '_'.join(blob.name.split('/')[1].split('_')[0:3])
 
+        # table name
         table_vars = '_'.join(blob.name.split('/')[1].split('_')[3:]).split('.')[0].split('_')
         del table_vars[1]
         table_name = '_'.join(table_vars)
 
+        # gs cloud file to write
         file_name = blob.name
 
         tables.append([db, table_name, file_name])
@@ -30,40 +52,64 @@ def storage_list(bucket_name):
     return tables
 
 
-def main():
+def loads_gbq_table_data(gcs_data_list, bucket_name, table_action=bigquery.WriteDisposition.WRITE_APPEND):
+    """loads data from a list to Google Big Query tables.
 
-    bucket = input('Enter Google Cloud Bucket Name')
-    # bucket = 'sandbox-tc.appspot.com'
+    Args:
+        gcs_data_list: A nested list of information needed to create Google BigQuery tables.
+        bucket_name: A string naming the name of a Google Cloud Storage Bucket.
+        table_action: A biqquery object which specifies how data should be written to tables. The Default parameter
+            settings configured to append data to existing tables rather than overwrite it. To only write data if table
+            is empty, update table_action to 'bigquery.WriteDisposition.WRITE_EMPTY' and to overwrite existing data
+            change table_action to 'bigquery.WriteDisposition.WRITE_TRUNCATE'.
 
-    cloud_files = storage_list(bucket)
+    Returns:
+        None.
+    """
 
-    # push data from the cloud to big query
     client = bigquery.Client()
 
-    for data_file in cloud_files:
+    for data_file in gcs_data_list:
 
-        table_ref = client.dataset(data_file[0]).table(data_file[1])
+        print('\n' + '**' * 25)
+        print('Writing {table} to {db}'.format(table=data_file[1], db=data_file[0]))
 
+        # configure job specifications
         job_config = bigquery.LoadJobConfig()
-        job_config.write_disposition = bigquery.WriteDisposition.WRITE_APPEND
+        job_config.write_disposition = table_action
         job_config.skip_leading_rows = 1
         job_config.autodetect = True
-
-        # The source format defaults to CSV, so the line below is optional.
         job_config.source_format = bigquery.SourceFormat.CSV
-        uri = "gs://sandbox-tc.appspot.com/" + str(data_file[2])
 
         load_job = client.load_table_from_uri(
-            uri, table_ref, job_config=job_config
-        )
-        # API request
-        print("Starting job {}".format(load_job.job_id))
+                                              'gs://' + str(bucket_name) + '/' + str(data_file[2]),
+                                              client.dataset(data_file[0]).table(data_file[1]),
+                                              job_config=job_config
+                                              )
 
-        load_job.result()  # Waits for table load to complete.
-        print("Job finished.")
+        # make API request and print rows to confirm successful upload
+        print('Starting load job: {}'.format(load_job.job_id))
+        load_job.result()
+        print('Load job finished.')
+        print('Loaded {} rows'.format(client.get_table(client.dataset(data_file[0]).table(data_file[1])).num_rows))
 
-        destination_table = client.get_table(table_ref)
-        print("Loaded {} rows.".format(destination_table.num_rows))
+    return None
+
+
+def main():
+
+    print('\n')
+    gscloud_bucket = input('Enter Google Cloud Storage Bucket Name: ')
+    gscloud_bucket_dir = input('Enter Google Cloud Bucket Name: ')
+
+    # gscloud_bucket = 'sandbox-tc.appspot.com'
+    # gscloud_bucket_dir = 'temp_results'
+
+    # get data from Google Cloud Storage
+    cloud_files = parses_gsc_filepath(gscloud_bucket, gscloud_bucket_dir)
+
+    # push data to Google Big Query
+    loads_gbq_table_data(cloud_files, gscloud_bucket)
 
 
 if __name__ == '__main__':
