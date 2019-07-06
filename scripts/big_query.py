@@ -4,11 +4,12 @@
 #########################
 
 
-import apiclient
+# import apiclient
 import datetime
 import pandas_gbq
 
 from datetime import datetime
+from googleapiclient import discovery
 from google.oauth2 import service_account
 import oauth2client.service_account
 from pandas_gbq import exceptions
@@ -33,14 +34,14 @@ class GBQ(object):
         self.key = 'resources/programming/Google_API/sandbox-tc-b0a5e4cd1d8e.json'
         self.api = 'https://www.googleapis.com/auth/bigquery'
         self.auth = oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_name(self.key, self.api)
-        self.gbq_service = apiclient.discovery.build('bigquery', 'v2', credentials=self.auth)
+        self.gbq_service = discovery.build('bigquery', 'v2', credentials=self.auth)
         self.auth2 = service_account.Credentials.from_service_account_file(self.key)
         self.project = project
         self.database = database
 
     def get_authorization(self):
         self.auth = oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_name(self.key, self.api)
-        self.gbq_service = apiclient.discovery.build('bigquery', 'v2', credentials=self.auth)
+        self.gbq_service = discovery.build('bigquery', 'v2', credentials=self.auth)
         self.auth2 = service_account.Credentials.from_service_account_file(self.key)
 
         return None

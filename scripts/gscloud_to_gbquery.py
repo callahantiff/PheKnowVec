@@ -3,9 +3,10 @@
 # Python 3.6.2
 ##########################
 
+import warnings
+
 from google.cloud import storage
 from google.cloud import bigquery
-import warnings
 
 warnings.filterwarnings("ignore")
 # TODO: Update authentication to use storage account rather than Google Cloud SDK.

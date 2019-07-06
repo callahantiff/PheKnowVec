@@ -106,6 +106,7 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
     """
     src_std_results = []
     for query in queries[:-1]:
+        print('\n')
         print('SOURCE QUERY: {query_name}'.format(query_name=query[0]))
 
         # set data
@@ -257,7 +258,10 @@ def main():
               'Hypothyroidism_14']
 
     for sht in sheets[6:]:
-        print('\n\n', '*' * 25, 'Processing: {phenotype}'.format(phenotype=sht), '*' * 25)
+        print('\n\n')
+        print('*' * (len(' Processing: {phenotype} '.format(phenotype=sht)) + 20))
+        print('*' * 10 + ' Processing: {phenotype} '.format(phenotype=sht) + '*' * 10)
+        print('*' * (len(' Processing: {phenotype} '.format(phenotype=sht)) + 20))
 
         # load data from GoogleSheet
         all_data = GSProcessor(['Phenotype Definitions', sht])
@@ -269,11 +273,13 @@ def main():
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         for db in databases:
-            print('DATABASE: {db}'.format(db=db))
 
             # loop over the data domains (e.g. drug, condition, measurement)
             for domain in data_groups.groups:
-                print('\n Running Queries on: {domain}-{type}s'.format(domain=domain[0], type=domain[1]))
+                print('\n' + '#' * len('Running Queries on: {domain}-{type}s'.format(domain=domain[0], type=domain[1])))
+                print('DATABASE: {db}'.format(db=db))
+                print('Running Queries on: {domain}-{type}s'.format(domain=domain[0], type=domain[1]))
+                print('#' * len('Running Queries on: {domain}-{type}s'.format(domain=domain[0], type=domain[1])))
 
                 if 'String' in domain[1]:
                     query_res = []
@@ -286,7 +292,7 @@ def main():
 
                         # run source + standard queries
                         updated_query = query + [queries[-1]]
-                        res = src_queries(all_data, process_data, url, db, updated_query, domain, sprdsht, 'file')
+                        res = src_queries(all_data, process_data, url, [db], updated_query, domain, sprdsht, 'file')
 
                         if res is not None:
                             res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
@@ -301,7 +307,7 @@ def main():
                     process_data['source_string'] = None
 
                     # run standard code queries
-                    query_res = standard_queries(all_data, process_data, standard, url, db, domain, [''])
+                    query_res = standard_queries(all_data, process_data, standard, url, [db], domain, [''])
                     query_res['source_domain'] = domain[0]
                     query_res['source_string'] = query_res['source_code']
                     query_res['source_code_set'] = 'exact_none_self'
@@ -325,9 +331,17 @@ def main():
                                                      left_on='source_id',
                                                      right_on='source_string')
 
-                    # write data to CHCO + MIMIC databases
-                    print('Writing {sht}: {data} to {db}'.format(sht=sht, data=domain[0], db=db))
+                    # save results
                     table = str(db) + '_' + sht.split('_')[0].upper() + '_' + str(domain[0]) + '_COHORT_VARS.csv'
+
+                    print('-' * len('Writing Results - File Path: '))
+                    print('Writing Results - File Path: {data}'.format(data=r'temp_results/' + str(table)))
+                    print('-' * len('Writing Results - File Path: '))
+
                     merged_domain_results.to_csv(r'temp_results/' + str(table), index=None, header=True)
 
                     time.sleep(90)
+
+
+if __name__ == '__main__':
+    main()

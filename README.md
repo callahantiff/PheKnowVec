@@ -50,3 +50,10 @@ ADHD | Case | Include | Presence of  >1 prescriptions of ADHD-related medication
 There are two types of queries run:
   1. Queries to map code sets
   2. Queries to create patient cohorts
+
+***
+
+Run main to create code sets  
+Run bash script to push data from temp_file to GCS  (delete temp directory off of laptop, but keep on cloud server)
+Run gscloud_to_gbquery to push data from GCS to GBQ
+Run cohort creator to create cohorts and generate results

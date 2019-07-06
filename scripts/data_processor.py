@@ -19,6 +19,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 from scripts.big_query import *
 
+
 # TODO: improve handling of API errors, the approach works but adds in some redundant rer-activation of the API client.
 
 
@@ -28,8 +29,8 @@ class GSProcessor(object):
     Attributes:
         auth: A string containing a file path to the json file containing Google API information.
         cred: A Service Account Credential object.
-        spreadsheet info: A list where the first item is a string that contains the name of a Google Sheet and the second
-        item is a string that contains the name of a tab in the `worksheet`.
+        spreadsheet info: A list where the first item is a string that contains the name of a Google Sheet and the
+            second item is a string that contains the name of a tab in the `worksheet`.
         spreadsheet: A authorized gspread object.
         worksheet: An empty string to store a specific worksheet in  a Google Sheet.
         data: An empty string to store GoogleSheet data.
@@ -164,7 +165,7 @@ class GSProcessor(object):
 
         for tab in tabs:
             wks = spreadsheet.worksheet(tab)
-            cell_count += wks.row_count*wks.col_count
+            cell_count += wks.row_count * wks.col_count
 
         return cell_count
 
@@ -520,8 +521,10 @@ class GSProcessor(object):
                       '","'.join(map(str, source2)) + '"'
 
                 # set-up named tuple
-                arg_dict = {'database': (database, *res)[0], 'concept_name': (database, *res)[1],
-                            'concept_synonym': (database, *res)[2], 'domain_id': (database, *res)[3]}
+                arg_dict = {'database': (tuple(database,) + tuple(res))[0],
+                            'concept_name': (database + tuple(res))[1],
+                            'concept_synonym': (tuple(database,) + tuple(res))[2],
+                            'domain_id': (tuple(database,) + tuple(res))[3]}
 
             else:
                 if '%' in mod:
@@ -537,9 +540,9 @@ class GSProcessor(object):
                 res = '\n'.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"'
 
                 # set-up named tuple
-                arg_dict = {'database': (database, *res)[0],
-                            'concept_name': (database, *res)[1],
-                            'domain_id': (database, *res)[2]}
+                arg_dict = {'database': (tuple(database,) + tuple(res))[0],
+                            'concept_name': (tuple(database,) + tuple(res))[1],
+                            'domain_id': (tuple(database,) + tuple(res))[2]}
 
         else:
             # to get occurrence counts
@@ -548,13 +551,16 @@ class GSProcessor(object):
                 source2 = set(list(data['standard_vocabulary']))
                 source3 = set(list(data['standard_domain'])).pop()
                 table_name = tables[[i for i, s in enumerate(tables) if source3.lower() in s][0]]
-                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
+                res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"' \
                       + source3 + '"', table_name, table_name.split('_')[0]
 
                 # set-up named tuple
-                arg_dict = {'database': (database, *res)[0], 'concept_codes': (database, *res)[1],
-                            'vocabulary_id': (database, *res)[2], 'domain_id': (database, *res)[3],
-                            'count_concept': (database, *res)[4], 'concept': (database, *res)[5]}
+                arg_dict = {'database': (tuple(database,) + tuple(res))[0],
+                            'concept_codes': (tuple(database,) + tuple(res))[1],
+                            'vocabulary_id': (tuple(database,) + tuple(res))[2],
+                            'domain_id': (tuple(database,) + tuple(res))[3],
+                            'count_concept': (tuple(database,) + tuple(res))[4],
+                            'concept': (tuple(database,) + tuple(res))[5]}
 
             else:
                 source1 = set(list(data[input_list[1]]))
@@ -567,20 +573,25 @@ class GSProcessor(object):
                           + source3 + '"'
 
                     # set-up named tuple
-                    arg_dict = {'database': (database, *res)[0], 'concept_codes': (database, *res)[1],
-                                'vocabulary_id': (database, *res)[2], 'domain_id': (database, *res)[3],
-                                'count_concept': (database, *res)[4], 'concept': (database, *res)[5]}
+                    arg_dict = {'database': (tuple(database,) + tuple(res))[0],
+                                'concept_codes': (tuple(database,) + tuple(res))[1],
+                                'vocabulary_id': (tuple(database,) + tuple(res))[2],
+                                'domain_id': (tuple(database,) + tuple(res))[3],
+                                'count_concept': (tuple(database,) + tuple(res))[4],
+                                'concept': (tuple(database,) + tuple(res))[5]}
 
                 # to get standard terms
                 else:
-                    source4 = map(str.strip, input_list[6][0].split(','))
-                    res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"'\
+                    source4 = map(str.strip, str(input_list[6][0]).split(','))
+                    res = ','.join(map(str, source1)), '"' + '","'.join(map(str, source2)) + '"', '"' \
                           + source3 + '"', '"' + '","'.join(map(str, source4)) + '"'
 
                     # set-up named tuple
-                    arg_dict = {'database': (database, *res)[0], 'concept_codes': (database, *res)[1],
-                                'source_vocabulary_id': (database, *res)[2], 'domain_id': (database, *res)[3],
-                                'standard_vocabulary_id': (database, *res)[4]}
+                    arg_dict = {'database': (tuple(database,) + tuple(res))[0],
+                                'concept_codes': (tuple(database,) + tuple(res))[1],
+                                'source_vocabulary_id': (tuple(database,) + tuple(res))[2],
+                                'domain_id': (tuple(database,) + tuple(res))[3],
+                                'standard_vocabulary_id': (tuple(database,) + tuple(res))[4]}
 
         if not len(source1) and len(source2) >= 1:
             raise ValueError('Error - check your input data, important variables may be missing')
