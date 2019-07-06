@@ -55,7 +55,7 @@ class GBQ(object):
         table_list = self.gbq_service.tables().list(projectId=self.project, datasetId=self.database).execute()
         tables = [x['id'].split('.')[-1] for x in table_list['tables']]
 
-        print('Retrieved {0} tables from {1}'.format(len(tables), self.database))
+        # print('Retrieved {0} tables from {1}'.format(len(tables), self.database))
 
         return tables
 
@@ -92,7 +92,7 @@ class GBQ(object):
         """
 
         start = datetime.now()
-        print('Started processing query: {}'.format(start))
+        # print('Started processing query: {}'.format(start))
 
         try:
             results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project,
@@ -105,10 +105,10 @@ class GBQ(object):
                                           credentials=self.auth2)
 
         finish = datetime.now()
-        print("Finished processing query: {}".format(finish))
+        # print("Finished processing query: {}".format(finish))
 
         duration = finish-start
         time_diff = round(duration.total_seconds(), 2)
-        print('Query returned: {0} results in {1} seconds \n'.format(len(results), time_diff))
+        # print('Query returned: {0} results in {1} seconds'.format(len(results), time_diff))
 
         return results

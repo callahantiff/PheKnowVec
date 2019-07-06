@@ -62,8 +62,8 @@ class GSProcessor(object):
                                                                              "_" + str(self.spreadsheet_info[1])))
         else:
             self.data = temp_data
-            print('Downloading data from Google Sheet: {0}, Tab: {1}\n'.format(self.spreadsheet_info[0],
-                                                                               self.spreadsheet_info[1]))
+            # print('Downloading data from Google Sheet: {0}, Tab: {1}\n'.format(self.spreadsheet_info[0],
+            #                                                                    self.spreadsheet_info[1]))
 
     def authorize_client(self):
 
@@ -109,7 +109,7 @@ class GSProcessor(object):
 
         try:
             self.worksheet = self.spreadsheet.worksheet(worksheet_name)
-            print('Updated, switched to: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
+            # print('Updated, switched to: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
 
         except gspread.exceptions.APIError:
 
@@ -117,7 +117,7 @@ class GSProcessor(object):
             self.authorize_client()
 
             self.worksheet = self.spreadsheet.worksheet(worksheet_name)
-            print('Updated, switched to: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
+            # print('Updated, switched to: {0}, Tab: {1}\n'.format(self.get_spreadsheet().title, worksheet_name))
 
     def create_worksheet(self, spreadsheet_name):
         """Takes a string as an argument and changes active tab in google sheets.
@@ -300,7 +300,7 @@ class GSProcessor(object):
              None.
         """
         self.data = new_data
-        print('Updated Instance -- Set New Pandas Dataframe')
+        # print('Updated Instance -- Set New Pandas Dataframe')
 
     def count_merger(self, databases, merged_results):
         """Function that merges two pandas data frames together and reformats the merged dataframe columns.
@@ -350,7 +350,7 @@ class GSProcessor(object):
         merged_res = []
 
         for db_ in databases:
-            print('\n' + '#' * 50 + '\n' + 'Running query against {0}'.format(db_))
+            # print('\n' + '#' * 50 + '\n' + 'Running query against {0}'.format(db_))
             db = GBQ(project, db_)
 
             # generate and run queries against SQL database
@@ -358,7 +358,7 @@ class GSProcessor(object):
             batch = self.data.groupby(np.arange(len(self.data)) // 15000)
 
             for name, group in batch:
-                print('\n Processing chunk: {0}/{1}'.format(name + 1, batch.ngroups))
+                # print('\n Processing chunk: {0}/{1}'.format(name + 1, batch.ngroups))
 
                 sql_query = self.code_format(url, group, db_, ['code'], '', url.split('/')[-1])
                 res = db.gbq_query(sql_query)
@@ -407,7 +407,7 @@ class GSProcessor(object):
         batch = self.data.groupby(np.arange(len(self.data)) // 15000)
 
         for chunk, group in batch:
-            print('\n Processing chunks: {0}/{1}'.format(chunk + 1, batch.ngroups))
+            # print('\n Processing chunks: {0}/{1}'.format(chunk + 1, batch.ngroups))
             sql_query = self.code_format(url[input_source[0]], group, gbq_database, input_source[2], input_source[1])
             res = gbq_db.gbq_query(sql_query)
             time.sleep(5)
