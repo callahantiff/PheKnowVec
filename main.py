@@ -8,7 +8,6 @@ import pandas as pd
 import time
 
 from scripts.data_processor import GSProcessor
-from scripts.big_query import *
 
 
 def standard_queries(data_class, data, queries, url, database, standard_vocab, spreadsheet_name):
@@ -29,8 +28,8 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
         results is returned, otherwise None is returned and the results are written to a Google Sheet.
     """
 
-    # process second half of queries -- getting standard codes
     std_query_res = []
+
     for std_query in queries:
         print('\n', '=' * 25, 'Running Standard Query: {0}'.format(std_query[0]), '=' * 25, '\n')
         time.sleep(10)
@@ -223,14 +222,11 @@ def source_code_populator(queries, std_results):
 
 
 def main():
-    ########################
-    # list databases
     databases = ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']
 
     # load queries
     url = {x.split(';')[0]: x.split(';')[1] for x in open('resources/github_gists.txt', 'r').read().split('\n')}
 
-    # QUERY ARGUMENTS
     # queries that map input strings to source_codes
     src_inputs1 = ['str', 'source_id', 'source_domain']
     src_inputs2 = ['str_syn', 'source_id', 'source_domain']
@@ -255,136 +251,117 @@ def main():
 
     # PHENOTYPES
     sheets = ['ADHD_179', 'SickleCellDisease_615', 'SleepApnea_240', 'Appendicitis_236', 'CrohnsDisease_77',
-              'Hypothyroidism_14', 'PeanutAllergy_609', 'SteroidInducedOsteonecrosis_155',
-              'SystemicLupusErythematosus_1058']
+              'PeanutAllergy_609', 'SteroidInducedOsteonecrosis_155',
+              'SystemicLupusErythematosus_1058', 'Hypothyroidism_14']
 
-    for sht in sheets[4:5]:
-        print(sht)
+    for sht in sheets[6:]:
         print('\n', '*' * 25, 'Processing Phenotype: {phenotype}'.format(phenotype=sht), '*' * 25, '\n')
 
         # load data from GoogleSheet
         all_data = GSProcessor(['Phenotype Definitions', sht])
         all_data.set_worksheet(sht)
-
-        # download data
         all_data.data_download()
         data = all_data.get_data().dropna(how='all', axis=1).dropna()
-        # data = data.drop(['cohort', 'criteria', 'phenotype_criteria', 'phenotype'], axis=1).drop_duplicates()
 
         # group data types for processing
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
-        # create variable to store data
-        domain_results = []
-
-        # loop over the data domains (e.g. drug, condition, measurement)
-        for domain in data_groups.groups:
-            print(domain)
-
-            if 'String' in domain[1]:
-                # run queries
-                print('\n', '=' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '=' * 25, '\n')
-
-                # store results
-                query_res = []
-                grp_data = data_groups.get_group(domain)
-                process_data = grp_data.copy()
-
-                for query in queries[0]:
-                    all_data.authorize_client()
-
-                    # create spreadsheet name
-                    spreadsheet = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
-
-                    # run wildcard and exact match source and standard code queries
-                    res = src_queries(all_data, process_data, url, databases[0], query + [queries[-1]], domain,
-                                      spreadsheet, 'file')
-
-                    if res is not None:
-                        # fix formatting of source_string
-                        res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
-
-                        # re-order columns
-                        res = res[['source_string', 'source_code', 'source_concept_id', 'source_name', 'source_domain',
-                                   'source_vocabulary', 'source_code_set', 'standard_code', 'standard_concept_id',
-                                   'standard_name', 'standard_domain', 'standard_vocabulary', 'standard_code_set']]
-
-                        query_res.append(res)
-                        time.sleep(60)
-            else:
-                # run queries
-                print('\n', '=' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '=' * 25, '\n')
-
-                # store results
-                grp_data = data_groups.get_group(domain)
-
-                # rename column
-                process_data = grp_data.copy()
-                process_data['source_code'] = list(process_data['source_id'])
-                process_data['source_string'] = None
-
-                # run queries
-                print('\n', '=' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '=' * 25, '\n')
-
-                # run standard code queries
-                query_res = standard_queries(all_data, process_data, standard, url, databases[0], domain, [''])
-                query_res['source_domain'] = domain[0]
-                query_res['source_string'] = query_res['source_code']
-                query_res['source_code_set'] = 'exact_none_self'
-
-                # add source codes
-                updated_query_res = source_code_populator(queries, query_res)
-
-                # re-order columns
-                query_res = updated_query_res[['source_string', 'source_code', 'source_concept_id', 'source_name',
-                                               'source_domain', 'source_vocabulary', 'source_code_set',
-                                               'standard_code', 'standard_concept_id', 'standard_name',
-                                               'standard_domain', 'standard_vocabulary', 'standard_code_set']]
-                time.sleep(60)
-
-            # append domain data to list of domain data
-            if len(query_res) > 0:
-                if 'String' in domain[1]:
-                    domain_results.append(pd.concat(query_res, sort=True).drop_duplicates())
-                else:
-                    domain_results.append(query_res.drop_duplicates())
-
-        # combine results
-        concat_domain_results = pd.concat(domain_results, sort=True).drop_duplicates()
-
-        # add columns from original data set
-        merged_domain_results = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
-                                                    'phenotype_definition_label', 'input_type',
-                                                    'source_id']],
-                                         right=concat_domain_results, how='outer',
-                                         left_on='source_id', right_on='source_string')
-
-        # merged_domain_results.to_csv(r'export_dataframe.csv', index=None, header=True)
-
-        # write data to CHCO + MIMIC databases
         for db in databases:
-            # GBQ: create a new table -- after verifying mappings
-            db_conn = GBQ('sandbox-tc', db)
+            # loop over the data domains (e.g. drug, condition, measurement)
+            # domain_results = []
+            for domain in data_groups.groups:
+                print('\n', '**' * 25, 'Running Queries: {id} domain'.format(id=domain[0]), '**' * 25)
 
-            # create a new table + write data to database
-            table_name = sht.split('_')[0].upper() + '_COHORT_VARIABLES'
-            db_conn.create_table(table_name, merged_domain_results)
+                if 'String' in domain[1]:
+                    query_res = []
+                    grp_data = data_groups.get_group(domain)
+                    process_data = grp_data.copy()
 
-        time.sleep(90)
+                    for query in queries[0]:
+                        all_data.authorize_client()
+                        spreadsheet = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
+
+                        # run source + standard queries
+                        res = src_queries(all_data, process_data, url, db, query + [queries[-1]], domain,
+                                          spreadsheet, 'file')
+
+                        if res is not None:
+                            res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
+                            query_res.append(res)
+                            time.sleep(60)
+                else:
+                    grp_data = data_groups.get_group(domain)
+
+                    # rename column
+                    process_data = grp_data.copy()
+                    process_data['source_code'] = list(process_data['source_id'])
+                    process_data['source_string'] = None
+
+                    # run standard code queries
+                    query_res = standard_queries(all_data, process_data, standard, url, db, domain, [''])
+                    query_res['source_domain'] = domain[0]
+                    query_res['source_string'] = query_res['source_code']
+                    query_res['source_code_set'] = 'exact_none_self'
+
+                    # add source codes
+                    query_res = source_code_populator(queries, query_res)
+                    time.sleep(60)
+
+                # append domain data to list of domain data
+                if len(query_res) > 0:
+                    if 'String' in domain[1]:
+                        domain_results = pd.concat(query_res, sort=True).drop_duplicates()
+                    else:
+                        domain_results = query_res.drop_duplicates()
+
+                    # # combine results 9,213,222
+                    # concat_domain_results = pd.concat(domain_results, sort=True).drop_duplicates()
+                    # add columns from original data set
+                    merged_domain_results = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
+                                                                'phenotype_definition_label', 'input_type', 'source_id']],
+                                                     right=domain_results,
+                                                     how='outer',
+                                                     left_on='source_id',
+                                                     right_on='source_string')
+
+                    # write data to CHCO + MIMIC databases
+                    print('\n + Writing {sht}: {data} to {db} + \n'.format(sht=sht, data=domain[0], db=db))
+                    table = str(db) + '_' + sht.split('_')[0].upper() + '_' + str(domain[0]) + '_COHORT_VARS.csv'
+                    merged_domain_results.to_csv(r'temp_results/' + str(table), index=None, header=True)
+
+                    # for db in databases:
+                    # table_name = sht.split('_')[0].upper() + '_COHORT_VARIABLES_2'
+                    # db_conn = GBQ('sandbox-tc', db)
+                    # db_conn.create_table(table_name, merged_domain_results, 'append')
+                    time.sleep(90)
+
 
 #
-# for index, row in merged_domain_results.iterrows():
-#     if row['standard_code_set'] == 'stand_none_self' or row['standard_code_set'] == 'stand_none_child' or \
-#             row['standard_code_set'] == 'stand_none_desc':
-#         print(row)
-
-# merge_test = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
-#                                  'phenotype_definition_label', 'input_type', 'source_id']],
-#                                          right=res, how='outer',
-#                                          left_on='source_id', right_on='source_string')
+# from datalab.context import Context
+# import datalab.storage as storage
+# import datalab.bigquery as bq
+# import pandas as pd
+# from pandas import DataFrame
+# import time
 #
-# merged_domain_results.to_csv(r'export_dataframe.csv', index=None, header=True)
-
-# if __name__ == '__main__':
-#     # with auger.magic([GSProcessor], verbose=True):  # this is the new line and invokes Auger
-#     main()
+# #Alternative 3
+# start = time.time()
+# sample_bucket_name = 'sandbox-tc.appspot.com'
+# sample_bucket_path = 'gs://sandbox-tc.appspot.com'
+# sample_bucket_object = sample_bucket_path + '/Hello.txt'
+# bigquery_dataset_name = 'TestDataSet'
+# bigquery_table_name = 'TestTable'
+#
+# # Define storage bucket
+# sample_bucket = storage.Bucket(sample_bucket_name)
+#
+# # Create or overwrite the existing table if it exists
+# table_schema = bq.Schema.from_dataframe(merged_domain_results)
+#
+# # Write the DataFrame to GCS (Google Cloud Storage)
+# %storage write --variable not_so_simple_dataframe --object $sample_bucket_object
+#
+# # Write the DataFrame to a BigQuery table
+# table.insert_data(not_so_simple_dataframe)
+# end = time.time()
+# print("time alternative 3 " + str(end - start))

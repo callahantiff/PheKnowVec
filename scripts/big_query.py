@@ -6,11 +6,11 @@
 
 import apiclient
 import datetime
-import oauth2client.service_account
 import pandas_gbq
 
 from datetime import datetime
 from google.oauth2 import service_account
+import oauth2client.service_account
 from pandas_gbq import exceptions
 
 # TODO: improve handling of API errors, the approach works but adds in some redundant rer-activation of the API client.
@@ -30,7 +30,7 @@ class GBQ(object):
     """
 
     def __init__(self, project, database):
-        self.key = 'resources/programming/Google_API/secret_client_gbq.json'
+        self.key = 'resources/programming/Google_API/sandbox-tc-b0a5e4cd1d8e.json'
         self.api = 'https://www.googleapis.com/auth/bigquery'
         self.auth = oauth2client.service_account.ServiceAccountCredentials.from_json_keyfile_name(self.key, self.api)
         self.gbq_service = apiclient.discovery.build('bigquery', 'v2', credentials=self.auth)
@@ -59,12 +59,14 @@ class GBQ(object):
 
         return tables
 
-    def create_table(self, table_name, data):
+    def create_table(self, table_name, data, modify_decision):
         """Creates a new GBQ table from an input pandas data frame.
 
         Args:
             table_name: A string that contains the name of a table.
             data: A pandas data frame.
+            modify_decision: A string specifying whether data should be "appended" to an existing table, "replace" an
+            data in an existing table or "fail" and add nothing to it.
 
         Returns:
             None.
@@ -72,8 +74,9 @@ class GBQ(object):
 
         pandas_gbq.to_gbq(data, str(self.database) + "." + str(table_name),
                           project_id=self.project,
-                          if_exists='replace',
+                          if_exists=modify_decision,
                           progress_bar=True,
+                          chunksize=10000,
                           credentials=self.auth2)
 
         print('Created new table: {0} in {1}'.format(table_name, self.database))
@@ -92,12 +95,14 @@ class GBQ(object):
         print('Started processing query: {}'.format(start))
 
         try:
-            results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project, credentials=self.auth2)
+            results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project,
+                                          credentials=self.auth2)
 
         except pandas_gbq.exceptions.AccessDenied:
             self.get_authorization()
 
-            results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project, credentials=self.auth2)
+            results = pandas_gbq.read_gbq(query, dialect='standard', project_id=self.project,
+                                          credentials=self.auth2)
 
         finish = datetime.now()
         print("Finished processing query: {}".format(finish))
