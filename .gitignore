@@ -1,6 +1,5 @@
 # Byte-compiled/optimized/DLL files
 __pycache__/
-*.py[cod]
 *$py.class
 
 # Distribution/packaging
@@ -38,7 +37,14 @@ resources/documentation/images/wiki/ReproducibleRepository.pptx
 
 # Programming resources
 resources/programming/Google_API/*
-data/ADHD_Code_Sets.xlsx
-data/~$ADHD_Code_Sets.xlsx
+scripts/scratch.py
+string_mapper.py
+tests/test_data_processor.py
+
+# Data
+data/*
+temp_results/*
+
+# Jupyter notebooks
 .ipynb_checkpoints/main-checkpoint.ipynb
 main.ipynb
