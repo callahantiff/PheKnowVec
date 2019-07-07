@@ -1,0 +1,10 @@
+adhd_def;https://gist.github.com/callahantiff/9d72379f932dd4b534d05ed4acad5faf/raw/ADHD_COHORT_DEFINITIONS.SQL
+adhd_code;https://gist.github.com/callahantiff/9d72379f932dd4b534d05ed4acad5faf/raw/ADHD_COHORT_CODES.SQL
+crohnsdisease_def;https://gist.github.com/callahantiff/4912a15f992be8c17e6acbda34bee239/raw/CROHNSDISEASE_COHORT_DEFINITIONS.sql
+crohnsdisease_code;https://gist.github.com/callahantiff/4912a15f992be8c17e6acbda34bee239/raw/CROHNSDISEASE_COHORT_CODES.sql
+sicklecelldisease_def;https://gist.github.com/callahantiff/c65b07dd8bb5ec0575701ce02d8cb750/raw/SICKLECELLDISEASE_COHORT_DEFINITIONS.SQL
+sicklecelldisease_code;https://gist.github.com/callahantiff/c65b07dd8bb5ec0575701ce02d8cb750/raw/SICKLECELLDISEASE_COHORT_CODES.SQL
+sleepapnea_def;https://gist.github.com/callahantiff/6efbf01a6087f088e9e1eaa0ca69430c/raw/SLEEPAPNEA_COHORT_DEFINITIONS.sql
+sleepapnea_code;https://gist.github.com/callahantiff/6efbf01a6087f088e9e1eaa0ca69430c/raw/SLEEPAPNEA_COHORT_CODES.sql
+appendicitis_def;
+appendicitis_code;
