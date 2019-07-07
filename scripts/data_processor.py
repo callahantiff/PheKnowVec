@@ -522,7 +522,7 @@ class GSProcessor(object):
 
                 # set-up named tuple
                 arg_dict = {'database': (tuple(database,) + tuple(res))[0],
-                            'concept_name': (database + tuple(res))[1],
+                            'concept_name': (tuple(database,) + tuple(res))[1],
                             'concept_synonym': (tuple(database,) + tuple(res))[2],
                             'domain_id': (tuple(database,) + tuple(res))[3]}
 

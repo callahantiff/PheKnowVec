@@ -4,7 +4,6 @@
 #########################
 
 
-# import apiclient
 import datetime
 import pandas_gbq
 

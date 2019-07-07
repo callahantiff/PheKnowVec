@@ -36,13 +36,14 @@ def parses_gsc_filepath(bucket_name, bucket_directory):
     blobs = bucket.list_blobs(prefix=bucket_directory, delimiter=None)
 
     for blob in blobs:
+        print(blob)
 
         # database name
         db = '_'.join(blob.name.split('/')[1].split('_')[0:3])
 
         # table name
         table_vars = '_'.join(blob.name.split('/')[1].split('_')[3:]).split('.')[0].split('_')
-        del table_vars[1]
+        del table_vars[1:3]
         table_name = '_'.join(table_vars)
 
         # gs cloud file to write

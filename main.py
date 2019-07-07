@@ -5,6 +5,7 @@
 
 import copy
 import pandas as pd
+import random
 import time
 
 from scripts.data_processor import GSProcessor
@@ -32,7 +33,6 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
     for std_query in queries:
         print('STANDARD QUERY: {query_name}'.format(query_name=std_query[0]))
-        time.sleep(10)
 
         # set instance data
         data_class.set_data(data)
@@ -77,6 +77,8 @@ def standard_queries(data_class, data, queries, url, database, standard_vocab, s
 
                 std_results['standard_code_set'] = code_set_name
                 std_query_res.append(std_results)
+
+        time.sleep(random.randint(5, 60))
 
     # verify that the query returned results  -- only returning if more than 0 rows of data
     if len(std_query_res) > 0:
@@ -170,13 +172,15 @@ def src_queries(data_class, data, url, database, queries, standard_vocab, spread
                 # run standard queries and write results
                 st_data = standard_queries(data_class, src_results, queries[-1], url, database, standard_vocab,
                                            [query[0]])
-                st_data['source_code_set'] = query[0]
 
-                # append results
-                src_std_results.append(st_data)
+                if st_data is not None:
+                    st_data['source_code_set'] = query[0]
+
+                    # append results
+                    src_std_results.append(st_data)
 
             # sleep system and re-authorize API client
-            time.sleep(10)
+            time.sleep(random.randint(5, 60))
             data_class.authorize_client()
 
     # only return results if there is data
@@ -253,11 +257,11 @@ def main():
     queries = wild + exact, standard
 
     # PHENOTYPES
-    sheets = ['ADHD_179', 'SickleCellDisease_615', 'SleepApnea_240', 'Appendicitis_236', 'CrohnsDisease_77',
-              'SteroidInducedOsteonecrosis_155', 'SystemicLupusErythematosus_1058', 'PeanutAllergy_609',
+    sheets = ['ADHD_179', 'SickleCellDisease_615', 'SleepApnea_240', 'SystemicLupusErythematosus_1058',
+              'CrohnsDisease_77', 'Appendicitis_236', 'SteroidInducedOsteonecrosis_155', 'PeanutAllergy_609',
               'Hypothyroidism_14']
 
-    for sht in sheets[6:]:
+    for sht in sheets:
         print('\n\n')
         print('*' * (len(' Processing: {phenotype} '.format(phenotype=sht)) + 20))
         print('*' * 10 + ' Processing: {phenotype} '.format(phenotype=sht) + '*' * 10)
@@ -273,8 +277,8 @@ def main():
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
         for db in databases:
-
             # loop over the data domains (e.g. drug, condition, measurement)
+            # for domain in [(u'Measurement', u'String', u'LOINC')]:
             for domain in data_groups.groups:
                 print('\n' + '#' * len('Running Queries on: {domain}-{type}s'.format(domain=domain[0], type=domain[1])))
                 print('DATABASE: {db}'.format(db=db))
@@ -286,7 +290,7 @@ def main():
                     grp_data = data_groups.get_group(domain)
                     process_data = grp_data.copy()
 
-                    for query in queries[0]:
+                    for query in queries[0][2:]:
                         all_data.authorize_client()
                         sprdsht = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
 
@@ -332,15 +336,19 @@ def main():
                                                      right_on='source_string')
 
                     # save results
-                    table = str(db) + '_' + sht.split('_')[0].upper() + '_' + str(domain[0]) + '_COHORT_VARS.csv'
+                    table = str(db) + '_' + sht.split('_')[0].upper() + '_' + str(domain[0]) + '_' + str(domain[1])
 
-                    print('-' * len('Writing Results - File Path: '))
-                    print('Writing Results - File Path: {data}'.format(data=r'temp_results/' + str(table)))
-                    print('-' * len('Writing Results - File Path: '))
+                    print('-' * len('Writing Results - Path: '))
+                    print('Writing Results - Path: {data}_COHORT_VARS.csv'.format(data=r'temp_results/' + str(table)))
+                    print('-' * len('Writing Results - Path: '))
 
-                    merged_domain_results.to_csv(r'temp_results/' + str(table), index=None, header=True)
+                    merged_domain_results.to_csv(r'temp_results/temp_results/' + str(table) + '_COHORT_VARS.csv',
+                                                 index=None,
+                                                 header=True,
+                                                 encoding='utf-8')
 
-                    time.sleep(90)
+        time.sleep(90)
+    time.sleep(90)
 
 
 if __name__ == '__main__':
