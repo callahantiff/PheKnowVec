@@ -7,6 +7,7 @@ import warnings
 
 from google.cloud import storage
 from google.cloud import bigquery
+from google.cloud.exceptions import NotFound
 
 warnings.filterwarnings("ignore")
 # TODO: Update authentication to use storage account rather than Google Cloud SDK.
@@ -36,20 +37,21 @@ def parses_gsc_filepath(bucket_name, bucket_directory):
     blobs = bucket.list_blobs(prefix=bucket_directory, delimiter=None)
 
     for blob in blobs:
-        print(blob)
 
-        # database name
-        db = '_'.join(blob.name.split('/')[1].split('_')[0:3])
+        if '.DS_Store' not in blob.name:
 
-        # table name
-        table_vars = '_'.join(blob.name.split('/')[1].split('_')[3:]).split('.')[0].split('_')
-        del table_vars[1:3]
-        table_name = '_'.join(table_vars)
+            # database name
+            db = '_'.join(blob.name.split('/')[1].split('_')[0:3])
 
-        # gs cloud file to write
-        file_name = blob.name
+            # table name
+            table_vars = '_'.join(blob.name.split('/')[1].split('_')[3:]).split('.')[0].split('_')
+            del table_vars[1:3]
+            table_name = '_'.join(table_vars)
 
-        tables.append([db, table_name, file_name])
+            # gs cloud file to write
+            file_name = blob.name
+
+            tables.append([db, table_name, file_name])
 
     return tables
 
@@ -67,35 +69,46 @@ def loads_gbq_table_data(gcs_data_list, bucket_name, table_action=bigquery.Write
 
     Returns:
         None.
+
+    Raises:
+        An error occurred if the table trying to be written already exists.
     """
 
     client = bigquery.Client()
 
     for data_file in gcs_data_list:
+        # make sure table does not already exist
+        try:
+            client = bigquery.Client()
+            dataset = client.dataset(data_file[0])
+            table_ref = dataset.table(data_file[1])
+            client.get_table(table_ref)
 
-        print('\n' + '**' * 25)
-        print('Writing {table} to {db}'.format(table=data_file[1], db=data_file[0]))
+        except NotFound:
 
-        # configure job specifications
-        job_config = bigquery.LoadJobConfig()
-        job_config.write_disposition = table_action
-        job_config.skip_leading_rows = 1
-        job_config.autodetect = True
-        job_config.source_format = bigquery.SourceFormat.CSV
+            print('\n' + '**' * 25)
+            print('Writing {table} to {db}'.format(table=data_file[1], db=data_file[0]))
 
-        load_job = client.load_table_from_uri(
-                                              'gs://' + str(bucket_name) + '/' + str(data_file[2]),
-                                              client.dataset(data_file[0]).table(data_file[1]),
-                                              job_config=job_config
-                                              )
+            # configure job specifications
+            job_config = bigquery.LoadJobConfig()
+            job_config.write_disposition = table_action
+            job_config.skip_leading_rows = 1
+            job_config.autodetect = True
+            job_config.source_format = bigquery.SourceFormat.CSV
 
-        # make API request and print rows to confirm successful upload
-        print('Starting load job: {}'.format(load_job.job_id))
-        load_job.result()
-        print('Load job finished.')
-        print('Loaded {} rows'.format(client.get_table(client.dataset(data_file[0]).table(data_file[1])).num_rows))
+            load_job = client.load_table_from_uri(
+                                                  'gs://' + str(bucket_name) + '/' + str(data_file[2]),
+                                                  client.dataset(data_file[0]).table(data_file[1]),
+                                                  job_config=job_config
+                                                  )
 
-    return None
+            # make API request and print rows to confirm successful upload
+            print('Starting load job: {}'.format(load_job.job_id))
+            load_job.result()
+            print('Load job finished.')
+            print('Loaded {} rows'.format(client.get_table(client.dataset(data_file[0]).table(data_file[1])).num_rows))
+
+        return None
 
 
 def main():
