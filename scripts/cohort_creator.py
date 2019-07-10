@@ -117,19 +117,21 @@ def generates_performance_metrics(db, phenotype, results, gold_standard):
 
     for grp_set in results.groups:
         print('Running Set - cohort:{cohort}, data:{data}, approach:{search}'.format(cohort=grp_set[0],
-                                                                                            data=grp_set[1],
-                                                                                            search=grp_set[2]))
+                                                                                     data=grp_set[1],
+                                                                                     search=grp_set[2]))
         # re-group by code_sets
         grp_code_sets = results.get_group(grp_set).groupby(['code_set'])
 
         # set gold standard
-        y_actual = grp_code_sets.get_group(gold_standard)['person_id']
+        if gold_standard in [x for x in grp_code_sets.groups]:
 
-        for c_set in [x for x in grp_code_sets.groups if x is not gold_standard]:
+            y_actual = grp_code_sets.get_group(gold_standard)['person_id']
 
-            # get results (TP/FP/FN/FNR/FPR)
-            result_metrics = evaluates_performance(y_actual, grp_code_sets.get_group(c_set)['person_id'])
-            evaluation_results.append([db, c_set, grp_set[0], grp_set[1], grp_set[2]] + result_metrics[1])
+            for c_set in [x for x in grp_code_sets.groups if x is not gold_standard]:
+
+                # get results (TP/FP/FN/FNR/FPR)
+                result_metrics = evaluates_performance(y_actual, grp_code_sets.get_group(c_set)['person_id'])
+                evaluation_results.append([db, c_set, grp_set[0], grp_set[1], grp_set[2]] + result_metrics[1])
 
     # convert to pandas dataframe and save results
     merged_results = pd.DataFrame(dict(db=[x[0] for x in evaluation_results],
@@ -210,7 +212,7 @@ def main():
         print('*' * len('DATABASE: {db}'.format(db=db)))
 
         # loop over phenotypes
-        for phenotype in phenotypes[1:3]:
+        for phenotype in phenotypes[4:]:
 
             # get queries
             queries = [url[key] for key in url if phenotype.split('_')[0].lower() in key.lower()]
