@@ -261,7 +261,7 @@ def main():
               'CrohnsDisease_77', 'Appendicitis_236', 'SteroidInducedOsteonecrosis_155', 'PeanutAllergy_609',
               'Hypothyroidism_14']
 
-    for sht in sheets:
+    for sht in sheets[-1:]:
         print('\n\n')
         print('*' * (len(' Processing: {phenotype} '.format(phenotype=sht)) + 20))
         print('*' * 10 + ' Processing: {phenotype} '.format(phenotype=sht) + '*' * 10)
