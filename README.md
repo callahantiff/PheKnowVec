@@ -11,11 +11,10 @@ This repository contains more than just code, it provides a detailed and transpa
 
 <img src="https://img.shields.io/badge/ReproducibleResearch-AbraCollaboratory-magenta.svg?style=flat-square" alt="git-AbraCollaboratory">
 
-### Project Statistics
-
-![GitHub contributors](https://img.shields.io/github/contributors/callahantiff/PheKnowVec.svg?color=yellow&style=flat-square) ![Github all releases](https://img.shields.io/github/downloads/callahantiff/PheKnowVec/total.svg?color=dodgerblue&style=flat-square)
-
 <br>
+
+**Preliminary results were presented at the 2020 Joint Meeting of the American Medical Informatics Association:**  
+Callahan TJ, Wyrwa J, Trinkley KE, Hunter LE, Kahn MG, Bennett TD. (2020, March). Towards Automating Computational Phenotyping: Exploring the Trade-offs of Different Vocabulary Mapping Strategies. Talk; Informatics Summits of the American Medical Informatics Association, Houston, TX; [Podium Abstract](https://www.dropbox.com/s/mccv9b10m4arvt3/2020%20AMIA%20Informatics%20Summit%20-%20Revision.pdf?dl=1)
 
 ______
 ### Getting Started
