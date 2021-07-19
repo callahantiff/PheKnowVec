@@ -41,10 +41,10 @@ def parses_gsc_filepath(bucket_name, bucket_directory):
         if '.DS_Store' not in blob.name:
 
             # database name
-            db = '_'.join(blob.name.split('/')[1].split('_')[0:3])
+            db = '_'.join(blob.name.split('/')[-1].split('_')[0:3])
 
             # table name
-            table_vars = '_'.join(blob.name.split('/')[1].split('_')[3:]).split('.')[0].split('_')
+            table_vars = '_'.join(blob.name.split('/')[-1].split('_')[3:]).split('.')[0].split('_')
             del table_vars[1:3]
             table_name = '_'.join(table_vars)
 
@@ -76,39 +76,44 @@ def loads_gbq_table_data(gcs_data_list, bucket_name, table_action=bigquery.Write
 
     client = bigquery.Client()
 
+    # for data_file in gcs_data_list:
+        # # make sure table does not already exist
+        # try:
+        #     client = bigquery.Client()
+        #     dataset = client.dataset(data_file[0])
+        #     table_ref = dataset.table(data_file[1])
+        #     client.get_table(table_ref)
+        #
+        # except NotFound:
+
     for data_file in gcs_data_list:
-        # make sure table does not already exist
-        try:
-            client = bigquery.Client()
-            dataset = client.dataset(data_file[0])
-            table_ref = dataset.table(data_file[1])
-            client.get_table(table_ref)
 
-        except NotFound:
+        print('\n' + '**' * 25)
+        table_data_type = '_'.join(data_file[2].split('/')[-1].split('.')[0].split('_')[-4:-2])
+        print('Writing {table}:{data_type} to {db}'.format(table=data_file[1],
+                                                           data_type=table_data_type,
+                                                           db=data_file[0]))
 
-            print('\n' + '**' * 25)
-            print('Writing {table} to {db}'.format(table=data_file[1], db=data_file[0]))
+        # configure job specifications
+        job_config = bigquery.LoadJobConfig()
+        job_config.write_disposition = table_action
+        job_config.skip_leading_rows = 1
+        job_config.autodetect = True
+        job_config.source_format = bigquery.SourceFormat.CSV
 
-            # configure job specifications
-            job_config = bigquery.LoadJobConfig()
-            job_config.write_disposition = table_action
-            job_config.skip_leading_rows = 1
-            job_config.autodetect = True
-            job_config.source_format = bigquery.SourceFormat.CSV
+        load_job = client.load_table_from_uri(
+                                              'gs://' + str(bucket_name) + '/' + str(data_file[2]),
+                                              client.dataset(data_file[0]).table(data_file[1]),
+                                              job_config=job_config
+                                              )
 
-            load_job = client.load_table_from_uri(
-                                                  'gs://' + str(bucket_name) + '/' + str(data_file[2]),
-                                                  client.dataset(data_file[0]).table(data_file[1]),
-                                                  job_config=job_config
-                                                  )
+        # make API request and print rows to confirm successful upload
+        print('Starting load job: {}'.format(load_job.job_id))
+        load_job.result()
+        print('Load job finished.')
+        print('Loaded {} rows'.format(client.get_table(client.dataset(data_file[0]).table(data_file[1])).num_rows))
 
-            # make API request and print rows to confirm successful upload
-            print('Starting load job: {}'.format(load_job.job_id))
-            load_job.result()
-            print('Load job finished.')
-            print('Loaded {} rows'.format(client.get_table(client.dataset(data_file[0]).table(data_file[1])).num_rows))
-
-        return None
+    return None
 
 
 def main():
@@ -118,13 +123,15 @@ def main():
     gscloud_bucket_dir = input('Enter Google Cloud Bucket Name: ')
 
     # gscloud_bucket = 'sandbox-tc.appspot.com'
-    # gscloud_bucket_dir = 'temp_results'
+    # gscloud_bucket_dir = 'PheKnowVec_1.0_09August2019/temp_results'
 
     # get data from Google Cloud Storage
+    # cloud_files = parses_gsc_filepath('sandbox-tc.appspot.com', 'PheKnowVec_1.0_09August2019/temp_results/')
     cloud_files = parses_gsc_filepath(gscloud_bucket, gscloud_bucket_dir)
+    cloud_files_update = [x for x in cloud_files if 'HYPOTHYROIDISM_COHORT_VARS' not in x]
 
     # push data to Google Big Query
-    loads_gbq_table_data(cloud_files, gscloud_bucket)
+    loads_gbq_table_data(cloud_files_update, gscloud_bucket)
 
 
 if __name__ == '__main__':

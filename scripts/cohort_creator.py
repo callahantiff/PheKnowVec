@@ -3,6 +3,7 @@
 # Python 3.6.2
 ##########################
 
+import glob
 import requests
 import pandas as pd
 
@@ -23,43 +24,57 @@ def queries_gbq(phenotype, queries, code_sets, db):
 
     """
 
-    phenotype_results = []
+    # full_results = []
 
     # initiate GBQ class
     gbq_query = GBQ('sandbox-tc', db)
 
     for query in queries:
-        print('\n')
-
         for grp_set in code_sets:
-            print('Running Query: {query} - Code Set: {codeset}'.format(query=query.split('/')[-1], codeset=grp_set))
+            # print('Running Query: {query} - Code Set: {codeset}'.format(query=query.split('/')[-1], codeset=grp_set))
 
             # format query
             group = '"' + str(grp_set) + '"'
             formatted_query = requests.get(query, allow_redirects=True).text.format(database=db, code_set_group=group)
 
             # run query
-            phenotype_results.append(gbq_query.gbq_query(formatted_query))
+            # phenotype_results.append(gbq_query.gbq_query(formatted_query))
 
-    # concatenate results
-    merged_results = pd.concat(phenotype_results, sort=True).drop_duplicates()
+        # # concatenate results
+        # merged_results = pd.concat(phenotype_results, sort=True).drop_duplicates()
 
-    # write data to a file
-    table = str(db) + '_' + phenotype.split('_')[0] + '_COHORT.csv'
+            # write data to a file
+            table = str(db) + '_' + query.split('/')[-1].split('.')[0] + '_' + phenotype.split('_')[0] + '_' + str(grp_set)\
+                    + '_COHORT.csv'
 
-    print('-' * len('Writing Results - File Path: '))
-    print('Writing Results - File Path: {data}'.format(data=r'temp_results/cohorts/' + str(table)))
-    print('-' * len('Writing Results - File Path: '))
+            # print('-' * len('Writing Results - File Path: '))
+            print('Writing Results - File Path: {data}'.format(data=r'temp_results/cohorts/' + str(table)))
+            # print('-' * len('Writing Results - File Path: '))
 
-    merged_results.to_csv(r'temp_results/cohorts/' + str(table), index=None, header=True, encoding='utf-8')
+            gbq_query.gbq_query(formatted_query).to_csv(r'temp_results/cohorts/' + str(table),
+                                                        index=None, header=True, encoding='utf-8')
 
-    return merged_results
+    return None
+
+        # full_results.append(merged_results)
+
+    # all_merged_results = pd.concat(full_results, sort=True).drop_duplicates()
+    #
+    # # write data to a file
+    # table2 = str(db) + '_' + phenotype.split('_')[0] + '_COHORT_FULL.csv'
+    #
+    # print('-' * len('Writing Results - File Path: '))
+    # print('Writing Results - File Path: {data}'.format(data=r'temp_results/cohorts/' + str(table2)))
+    # print('-' * len('Writing Results - File Path: '))
+    #
+    # all_merged_results.to_csv(r'temp_results/cohorts/' + str(table2), index=None, header=True, encoding='utf-8')
+    #
+    # return all_merged_results
 
 
 def evaluates_performance(y_actual, y_predicted):
-    """Calculates the true positive (tp), false positive (fp), false negative (fn), false negative rate (fnr),
-    and false positive rate (fpr). The total count of gold standard patients and predicted patients is also
-    calculated and returned.
+    """Calculates the true positive (tp), false positive (fp), and false negative (fn). The total count of gold
+    standard patients and predicted patients is also calculated and returned.
 
     Args:
         y_actual: A list of people identifiers; gold standard.
@@ -70,8 +85,8 @@ def evaluates_performance(y_actual, y_predicted):
         item is the string represented as a list. For example:
 
         (
-        'ActTot:9726; PredTot:9726; TP:9726; FN:0; FNR:0.0; FP:0; FPR:0.0',
-        [9726, 9726, 9726, 0, 0.0, 0, 0.0]
+        'ActTot:9726; PredTot:9726; TP:9726; FN:0; FP:0,
+        [9726, 9726, 9726, 0, 0]
         )
 
     """
@@ -83,19 +98,14 @@ def evaluates_performance(y_actual, y_predicted):
     # number of patients missing gs
     fn = set(y_actual).difference(set(y_predicted))
 
-    # calculate FNR/FPR
-    fnr = len(fn) / float(len(tp))
-    fpr = len(fp) / float(len(tp))
-
     # format results
-    performance_metrics = [len(set(y_actual)), len(set(y_predicted)), len(tp), len(fn), fnr, len(fp), fpr]
-    results = 'ActTot:{0}; PredTot:{1}; TP:{2}; FN:{3}; FNR:{4}; FP:{5}; FPR:{6}'.format(performance_metrics[0],
-                                                                                         performance_metrics[1],
-                                                                                         performance_metrics[2],
-                                                                                         performance_metrics[3],
-                                                                                         performance_metrics[4],
-                                                                                         performance_metrics[5],
-                                                                                         performance_metrics[6])
+    performance_metrics = [len(set(y_actual)), len(set(y_predicted)), len(tp), len(fn), len(fp)]
+    results = 'ActTot:{0}; PredTot:{1}; TP:{2}; FN:{3}; FP:{4}'.format(performance_metrics[0],
+                                                                       performance_metrics[1],
+                                                                       performance_metrics[2],
+                                                                       performance_metrics[3],
+                                                                       performance_metrics[4])
+
     return results, performance_metrics
 
 
@@ -143,9 +153,7 @@ def generates_performance_metrics(db, phenotype, results, gold_standard):
                                        predicted_total=[x[6] for x in evaluation_results],
                                        tp=[x[7] for x in evaluation_results],
                                        fn=[x[8] for x in evaluation_results],
-                                       fnr=[x[9] for x in evaluation_results],
-                                       fp=[x[10] for x in evaluation_results],
-                                       fpr=[x[11] for x in evaluation_results]))
+                                       fp=[x[9] for x in evaluation_results]))
     # write data
     file_name = '_'.join(db.split('_')[:-1]) + '_' + phenotype.split('_')[0] + '_COHORT_METRICS.csv'
     merged_results.to_csv('temp_results/cohort_metrics/' + str(file_name), index=None, header=True, encoding='utf-8')
@@ -193,15 +201,17 @@ def main():
 
     databases = ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']
 
-    phenotypes = ['ADHD_COHORT_VARS',
+    phenotypes = [
+                  'ADHD_COHORT_VARS',
                   'SICKLECELLDISEASE_COHORT_VARS',
                   'SLEEPAPNEA_COHORT_VARS',
                   'SYSTEMICLUPUSERYTHEMATOSUS_COHORT_VARS',
-                  'APPENDICITIS_COHORT_VARS',
-                  'CROHNSDISEASE_COHORT_VARS',
+                  # 'APPENDICITIS_COHORT_VARS',
                   'STEROIDINDUCEDOSTEONECROSIS_COHORT_VARS',
                   'PEANUTALLERGY_COHORT_VARS',
-                  'HYPOTHYROIDISM_COHORT_VARS']
+                  'CROHNSDISEASE_COHORT_VARS'
+        ]
+                  # 'HYPOTHYROIDISM_COHORT_VARS']
 
     # load queries
     url = {x.split(';')[0]: x.split(';')[1] for x in open('resources/github_gists_cohort.txt', 'r').read().split('\n')}
@@ -212,13 +222,34 @@ def main():
         print('*' * len('DATABASE: {db}'.format(db=db)))
 
         # loop over phenotypes
-        for phenotype in phenotypes[4:]:
+        for phenotype in phenotypes:
 
             # get queries
             queries = [url[key] for key in url if phenotype.split('_')[0].lower() in key.lower()]
 
             # run all queries for all code sets for each phenotype
-            phenotype_cohorts = queries_gbq(phenotype, queries, code_sets, db)
+            queries_gbq(phenotype, queries, code_sets, db)
+
+    # generate results
+    for db in databases:
+        print('\n' + '*' * len('DATABASE: {db}'.format(db=db)))
+        print('DATABASE: {db}'.format(db=db))
+        print('*' * len('DATABASE: {db}'.format(db=db)))
+
+        # loop over phenotypes
+        for phenotype in phenotypes:
+            print('Phenotype: {phe}'.format(phe=phenotype))
+
+            result_files = glob.glob('temp_results/cohorts/' + db + '_' + phenotype.split('_')[0] + '*.csv')
+            full_results = [pd.read_csv(file, header=0, skiprows=0) for file in result_files]
+            phenotype_cohorts = pd.concat(full_results, sort=True).drop_duplicates()
+
+            # write data to a file
+            # table2 = str(db) + '_' + phenotype.split('_')[0] + '_COHORT_FULL.csv'
+            # phenotype_cohorts.to_csv(r'temp_results/cohorts/full_cohort/' + str(table2),
+            #                          index=None,
+            #                          header=True,
+            #                          encoding='utf-8')
 
             # generate results
             results_groupings = phenotype_cohorts.groupby(['cohort_type', 'clinical_data_type', 'cohort_assignment'])
@@ -229,3 +260,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+

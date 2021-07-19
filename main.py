@@ -229,6 +229,9 @@ def source_code_populator(queries, std_results):
 
 
 def main():
+    # query_res = pd.read_csv('temp_results/Hypothyroidism_merged.csv', header=0, skiprows=0)
+    # query_res.drop_duplicates().to_csv(query_res, index=None, header=True, encoding='utf-8')
+
     databases = ['CHCO_DeID_Oct2018', 'MIMICIII_OMOP_Mar2019']
 
     # load queries
@@ -257,11 +260,13 @@ def main():
     queries = wild + exact, standard
 
     # PHENOTYPES
-    sheets = ['ADHD_179', 'SickleCellDisease_615', 'SleepApnea_240', 'SystemicLupusErythematosus_1058',
+    sheets = [
+        # 'ADHD_179', 'SickleCellDisease_615', 'SleepApnea_240',
+        'SystemicLupusErythematosus_1058',
               'CrohnsDisease_77', 'Appendicitis_236', 'SteroidInducedOsteonecrosis_155', 'PeanutAllergy_609',
               'Hypothyroidism_14']
 
-    for sht in sheets[-1:]:
+    for sht in sheets:
         print('\n\n')
         print('*' * (len(' Processing: {phenotype} '.format(phenotype=sht)) + 20))
         print('*' * 10 + ' Processing: {phenotype} '.format(phenotype=sht) + '*' * 10)
@@ -276,9 +281,7 @@ def main():
         # group data types for processing
         data_groups = data.groupby(['source_domain', 'input_type', 'standard_vocabulary'])
 
-        for db in databases:
-            # loop over the data domains (e.g. drug, condition, measurement)
-            # for domain in [(u'Measurement', u'String', u'LOINC')]:
+        for db in databases[0:1]:
             for domain in data_groups.groups:
                 print('\n' + '#' * len('Running Queries on: {domain}-{type}s'.format(domain=domain[0], type=domain[1])))
                 print('DATABASE: {db}'.format(db=db))
@@ -290,7 +293,7 @@ def main():
                     grp_data = data_groups.get_group(domain)
                     process_data = grp_data.copy()
 
-                    for query in queries[0][2:]:
+                    for query in queries[0]:
                         all_data.authorize_client()
                         sprdsht = '{0}_{1}_{2}'.format(sht.split('_')[0].upper(), domain[0].upper(), query[0][0])
 
@@ -300,7 +303,8 @@ def main():
 
                         if res is not None:
                             res['source_string'] = ['"' + str(x) + '"' for x in list(res['source_string'])]
-                            query_res.append(res)
+
+                            # query_res.append(res)
                             time.sleep(60)
                 else:
                     grp_data = data_groups.get_group(domain)
@@ -329,11 +333,12 @@ def main():
 
                     # add columns from original data set
                     merged_domain_results = pd.merge(left=data[['cohort', 'criteria', 'phenotype_definition_number',
-                                                                'phenotype_definition_label', 'input_type', 'source_id']],
+                                                                'phenotype_definition_label', 'input_type',
+                                                                'source_id']],
                                                      right=domain_results,
                                                      how='outer',
                                                      left_on='source_id',
-                                                     right_on='source_string')
+                                                     right_on='source_string').drop_duplicates()
 
                     # save results
                     table = str(db) + '_' + sht.split('_')[0].upper() + '_' + str(domain[0]) + '_' + str(domain[1])
@@ -347,8 +352,8 @@ def main():
                                                  header=True,
                                                  encoding='utf-8')
 
+            time.sleep(90)
         time.sleep(90)
-    time.sleep(90)
 
 
 if __name__ == '__main__':

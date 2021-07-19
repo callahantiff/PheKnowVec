@@ -54,6 +54,8 @@ There are two types of queries run:
 ***
 
 Run main to create code sets  
-Run bash script to push data from temp_file to GCS  (delete temp directory off of laptop, but keep on cloud server)
+Run bash script1 to push data from temp_file to GCS (delete temp directory off of laptop, but keep on cloud server)
 Run gscloud_to_gbquery to push data from GCS to GBQ
 Run cohort creator to create cohorts and generate results
+Run bash script again to push cohorts up to GCS and then gscloud to bigquery again to create the tables for each 
+disease cohort
